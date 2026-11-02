@@ -71,7 +71,12 @@
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
-
+	        <!-- PostgreSQL production database -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
         <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
