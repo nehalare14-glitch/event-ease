@@ -1,0 +1,585 @@
+
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EventEase | Event Management</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<body>
+
+<div class="layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+
+        <div class="brand">✦ EventEase</div>
+
+        <p class="menu-label">WORKSPACE</p>
+
+        <a class="nav-link active" href="#dashboard">▦ Dashboard</a>
+        <a class="nav-link" href="#events">◷ Events</a>
+        <a class="nav-link" th:href="@{/bookings}">▤ Bookings</a>
+
+        <a class="nav-link"
+           href="#reports"
+           sec:authorize="hasRole('ADMIN')">
+            ▤ Reports
+        </a>
+
+        <p class="menu-label">ACCOUNT</p>
+
+        <a class="nav-link" th:href="@{/settings}">⚙ Settings</a>
+
+        <div class="sidebar-bottom">
+            Your events, made easier.<br>
+            EventEase v1.0
+        </div>
+
+    </aside>
+
+    <!-- Main content -->
+    <main class="main">
+
+        <!-- Header -->
+        <header class="topbar">
+
+            <button class="menu-button" onclick="toggleMenu()">☰</button>
+
+            <div>
+                <div class="greeting">Event management</div>
+                <div class="muted">Your workspace overview</div>
+            </div>
+
+            <div class="profile">
+                <span class="avatar"
+                      th:text="${#strings.substring(#authentication.name, 0, 1).toUpperCase()}">
+                    U
+                </span>
+
+                <span th:text="${#authentication.name}">User</span>
+            </div>
+
+        </header>
+
+        <!-- Dashboard -->
+        <section id="dashboard" class="content">
+
+            <!-- Welcome -->
+            <div class="welcome">
+
+                <div>
+                    <p class="eyebrow">YOUR EVENT HUB</p>
+
+                    <h1>
+                        Make every moment <span>memorable.</span>
+                    </h1>
+
+                    <p>
+                        Plan events, manage bookings and keep everything organised.
+                    </p>
+                </div>
+
+                <button class="primary-button"
+        onclick="openModal()"
+        sec:authorize="hasRole('ADMIN')">
+    ＋ Create event
+</button>
+            </div>
+
+            <!-- Messages -->
+            <div th:if="${successMessage}"
+                 class="message success"
+                 th:text="${successMessage}">
+            </div>
+
+            <div th:if="${errorMessage}"
+                 class="message error"
+                 th:text="${errorMessage}">
+            </div>
+
+            <!-- Dashboard statistics -->
+            <div class="section-heading">
+                <div>
+                    <h2>Dashboard overview</h2>
+                    <p class="muted">A quick look at your activity</p>
+                </div>
+            </div>
+
+            <div class="stats">
+
+                <article class="stat-card">
+                    <div class="stat-top">
+                        <span>Total events</span>
+                        <span class="stat-icon purple">◷</span>
+                    </div>
+
+                    <strong th:text="${totalEvents}">0</strong>
+                    <small>Saved events</small>
+                </article>
+
+                <article class="stat-card">
+                    <div class="stat-top">
+                        <span>Total bookings</span>
+                        <span class="stat-icon blue">▣</span>
+                    </div>
+
+                    <strong th:text="${totalBookings}">0</strong>
+                    <small>Customer bookings</small>
+                </article>
+
+                <article class="stat-card"
+                         sec:authorize="hasRole('ADMIN')">
+
+                    <div class="stat-top">
+                        <span>Total Revenue</span>
+                        <span class="stat-icon green">₹</span>
+                    </div>
+
+                    <strong>
+                        ₹<span th:text="${#numbers.formatDecimal(totalRevenue, 1, 2)}">0.00</span>
+                    </strong>
+
+                    <small>Total ticket sales revenue</small>
+                </article>
+
+            </div>
+
+            <!-- Events section -->
+            <section id="events">
+
+                <div class="section-heading">
+
+                    <div>
+                        <h2>Upcoming events</h2>
+                        <p class="muted">Browse events and reserve tickets</p>
+                    </div>
+
+                    <input id="search"
+                           class="search"
+                           type="search"
+                           placeholder="Search events..."
+                           oninput="filterEvents()">
+
+                </div>
+
+                <div class="event-grid" id="eventGrid">
+
+                    <article class="event-card"
+                             th:each="event : ${events}">
+
+                        <div class="event-art art-one">
+                            <span>✦</span>
+                            <small th:text="${event.category}">EVENT</small>
+                        </div>
+
+                        <div class="event-info">
+
+                            <span class="tag"
+                                  th:text="${event.category}">
+                                Category
+                            </span>
+
+                            <h3 th:text="${event.title}">Event name</h3>
+
+                            <p>
+                                📅 <span th:text="${event.eventDate}"></span>
+                            </p>
+
+                            <p>
+                                📍 <span th:text="${event.location}"></span>
+                            </p>
+
+                            <p>
+                                🎟 ₹<span th:text="${event.ticketPrice}"></span>
+                            </p>
+
+                            <p>
+                                Available seats:
+                                <strong th:text="${event.availableSeats}"></strong>
+                            </p>
+
+                            <!-- Booking form -->
+                            <details class="booking-details">
+
+                                <summary>Book tickets</summary>
+
+                                <form th:action="@{/bookings/create}"
+                                      method="post"
+                                      class="booking-form">
+
+                                    <input type="hidden"
+                                           name="eventId"
+                                           th:value="${event.id}">
+
+                                    <label>Your name</label>
+
+                                    <input type="text"
+                                           name="customerName"
+                                           placeholder="Full name"
+                                           required
+                                           maxlength="100">
+
+                                    <label>Email address</label>
+
+                                    <input type="email"
+                                           name="customerEmail"
+                                           placeholder="Email address"
+                                           required
+                                           maxlength="150">
+
+                                    <label>Number of tickets</label>
+
+                                    <input type="number"
+                                           name="numberOfTickets"
+                                           value="1"
+                                           min="1"
+                                           th:attr="max=${event.availableSeats}"
+                                           required>
+
+                                    <button type="submit"
+                                            class="primary-button full-button"
+                                            th:disabled="${event.availableSeats == 0}">
+                                        Confirm booking
+                                    </button>
+
+                                </form>
+
+                            </details>
+
+                            <!-- Admin-only delete -->
+                            <a class="outline-button"
+                               sec:authorize="hasRole('ADMIN')"
+                               th:href="@{/events/delete/{id}(id=${event.id})}"
+                               onclick="return confirm('Delete this event?')">
+                                Delete event
+                            </a>
+
+                        </div>
+
+                    </article>
+
+                </div>
+
+                <p id="emptyMessage"
+                   class="muted"
+                   th:if="${#lists.isEmpty(events)}">
+                    No events saved yet.
+                </p>
+
+            </section>
+
+            <!-- Bookings section -->
+            <section id="bookings" class="bottom-panel">
+
+                <h2>Bookings</h2>
+
+                <p class="muted">
+                    The total booking count is shown above.
+                </p>
+
+                <a class="outline-button" th:href="@{/bookings}">
+                    View all bookings
+                </a>
+
+            </section>
+
+            <!-- Admin-only Reports and Analytics -->
+            <section id="reports"
+                     class="bottom-panel"
+                     sec:authorize="hasRole('ADMIN')">
+
+                <div class="section-heading">
+                    <div>
+                        <h2>Reports &amp; Analytics</h2>
+
+                        <p class="muted">
+                            Understand your event performance
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Analytics cards -->
+                <div class="stats">
+
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Tickets sold</span>
+                            <span class="stat-icon blue">🎟</span>
+                        </div>
+
+                        <strong th:text="${totalTicketsSold}">0</strong>
+                        <small>Total tickets purchased</small>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Total revenue</span>
+                            <span class="stat-icon green">₹</span>
+                        </div>
+
+                        <strong>
+                            ₹<span th:text="${#numbers.formatDecimal(totalRevenue, 1, 2)}">0.00</span>
+                        </strong>
+
+                        <small>Revenue from bookings</small>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Popular event</span>
+                            <span class="stat-icon purple">★</span>
+                        </div>
+
+                        <strong class="popular-event"
+                                th:text="${mostPopularEvent}">
+                            No bookings yet
+                        </strong>
+
+                        <small>Based on tickets sold</small>
+                    </article>
+
+                </div>
+
+                <!-- Event-wise sales table -->
+                <div class="section-heading">
+                    <div>
+                        <h2>Event-wise sales report</h2>
+
+                        <p class="muted">
+                            Tickets and revenue generated by each event
+                        </p>
+                    </div>
+                </div>
+
+                <div style="overflow-x:auto;">
+
+                    <table style="width:100%; border-collapse:collapse; text-align:left;">
+
+                        <thead>
+                            <tr>
+                                <th style="padding:12px;">Event name</th>
+                                <th style="padding:12px;">Tickets sold</th>
+                                <th style="padding:12px;">Revenue</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            <tr th:each="sale : ${eventWiseSales}">
+
+                                <td style="padding:12px;"
+                                    th:text="${sale[0]}">
+                                    Event name
+                                </td>
+
+                                <td style="padding:12px;"
+                                    th:text="${sale[1]}">
+                                    0
+                                </td>
+
+                                <td style="padding:12px;">
+                                    ₹<span th:text="${#numbers.formatDecimal(sale[2], 1, 2)}">0.00</span>
+                                </td>
+
+                            </tr>
+
+                            <tr th:if="${#lists.isEmpty(eventWiseSales)}">
+                                <td colspan="3" style="padding:12px;">
+                                    No sales data available yet.
+                                </td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+                <!-- Admin-only charts -->
+                <div class="stats">
+
+                    <article class="stat-card">
+                        <h3>Tickets sold by event</h3>
+                        <canvas id="ticketsChart"></canvas>
+                    </article>
+
+                    <article class="stat-card">
+                        <h3>Revenue by event</h3>
+                        <canvas id="revenueChart"></canvas>
+                    </article>
+
+                </div>
+
+            </section>
+
+            <!-- Settings -->
+            <section id="settings" class="bottom-panel">
+
+                <h2>Settings</h2>
+
+                <p class="muted">
+                    Account settings will be added later.
+                </p>
+
+            </section>
+
+        </section>
+
+    </main>
+
+</div>
+
+<!-- Admin-only Create Event modal -->
+<div class="modal-backdrop"
+     id="eventModal"
+     hidden
+     sec:authorize="hasRole('ADMIN')">
+
+    <div class="modal">
+
+        <button class="close-button" onclick="closeModal()">×</button>
+
+        <h2>Create an event</h2>
+
+        <p class="muted">Enter the event details below.</p>
+
+        <form id="eventForm"
+              th:action="@{/events/save}"
+              th:object="${newEvent}"
+              method="post">
+
+            <label>Event name</label>
+
+            <input type="text"
+                   th:field="*{title}"
+                   required
+                   maxlength="100">
+
+            <label>Category</label>
+
+            <input type="text"
+                   th:field="*{category}"
+                   required>
+
+            <label>Date</label>
+
+            <input type="date"
+                   th:field="*{eventDate}"
+                   required>
+
+            <label>Location</label>
+
+            <input type="text"
+                   th:field="*{location}"
+                   required>
+
+            <label>Ticket price (₹)</label>
+
+            <input type="number"
+                   th:field="*{ticketPrice}"
+                   min="0"
+                   step="0.01"
+                   required>
+
+            <label>Available seats</label>
+
+            <input type="number"
+                   th:field="*{availableSeats}"
+                   min="0"
+                   required>
+
+            <label>Description</label>
+
+            <input type="text"
+                   th:field="*{description}">
+
+            <button class="primary-button full-button" type="submit">
+                Save event
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+<script th:src="@{/js/app.js}"></script>
+
+<!-- Chart library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+<!-- Admin-only chart scripts -->
+<th:block sec:authorize="hasRole('ADMIN')">
+
+<script th:inline="javascript">
+
+    const sales = /*[[${eventWiseSales}]]*/ [];
+
+    const labels = sales.map(row => row[0]);
+    const tickets = sales.map(row => Number(row[1]));
+    const revenue = sales.map(row => Number(row[2]));
+
+    // Tickets sold chart
+    new Chart(document.getElementById('ticketsChart'), {
+
+        type: 'bar',
+
+        data: {
+            labels: labels,
+
+            datasets: [{
+                label: 'Tickets sold',
+                data: tickets
+            }]
+        },
+
+        options: {
+            responsive: true,
+
+            plugins: {
+                legend: {
+                    display: true
+                }
+            }
+        }
+
+    });
+
+    // Revenue chart
+    new Chart(document.getElementById('revenueChart'), {
+
+        type: 'bar',
+
+        data: {
+            labels: labels,
+
+            datasets: [{
+                label: 'Revenue (₹)',
+                data: revenue
+            }]
+        },
+
+        options: {
+            responsive: true,
+
+            plugins: {
+                legend: {
+                    display: true
+                }
+            }
+        }
+
+    });
+
+</script>
+
+</th:block>
+
+</body>
+</html>
+

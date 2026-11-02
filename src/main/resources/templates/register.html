@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register | EventEase</title>
+    <style>
+        body {
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #f4f1ff;
+            font-family: Arial, sans-serif;
+        }
+
+        .register-card {
+            width: min(90%, 400px);
+            padding: 30px;
+            background: white;
+            border-radius: 18px;
+            box-shadow: 0 10px 35px rgba(0,0,0,.08);
+        }
+
+        h1 { color: #5635b5; }
+
+        label {
+            display: block;
+            margin: 15px 0 7px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 22px;
+            padding: 13px;
+            border: none;
+            border-radius: 8px;
+            background: #6846ce;
+            color: white;
+            font-weight: bold;
+        }
+
+        .error {
+            padding: 10px;
+            background: #ffe6e6;
+            color: #a00000;
+            border-radius: 8px;
+        }
+
+        a {
+            display: block;
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="register-card">
+
+    <h1>✦ EventEase</h1>
+    <h2>Create your account</h2>
+
+    <p th:if="${errorMessage}"
+       class="error"
+       th:text="${errorMessage}"></p>
+
+    <form th:action="@{/register}" method="post">
+
+        <label>Username</label>
+        <input type="text"
+               name="username"
+               required
+               minlength="3"
+               maxlength="50">
+
+        <label>Email</label>
+        <input type="email"
+               name="email"
+               required
+               maxlength="150">
+
+        <label>Password</label>
+        <input type="password"
+               name="password"
+               required
+               minlength="8">
+
+        <button type="submit">Create Account</button>
+
+    </form>
+
+    <a th:href="@{/login}">Already registered? Sign in</a>
+
+</div>
+
+</body>
+</html>

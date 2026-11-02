@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Settings - EventEase</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f3fa;
+            color: #29243d;
+        }
+        header {
+            background: linear-gradient(120deg, #5425a8, #8052d6);
+            color: white;
+            padding: 22px 7%;
+        }
+        header h2 { margin: 0; }
+        .container {
+            max-width: 650px;
+            margin: 35px auto;
+            padding: 0 16px;
+        }
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 14px;
+            margin-bottom: 22px;
+            box-shadow: 0 5px 20px rgba(40, 20, 80, .07);
+        }
+        h3 { color: #5425a8; margin-top: 0; }
+        .detail {
+            padding: 13px;
+            background: #f7f5fc;
+            border-radius: 8px;
+            margin: 12px 0;
+            overflow-wrap: anywhere;
+        }
+        label {
+            display: block;
+            margin: 15px 0 7px;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 13px;
+            border: 1px solid #d8d1e8;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+        button, .back {
+            display: inline-block;
+            border: 0;
+            border-radius: 8px;
+            padding: 12px 20px;
+            background: #6536bd;
+            color: white;
+            font-weight: bold;
+            text-decoration: none;
+            cursor: pointer;
+            margin-top: 18px;
+        }
+        .back { background: #777; margin-left: 8px; }
+        .success {
+            background: #e1f7e9;
+            color: #176b35;
+            padding: 12px;
+            border-radius: 8px;
+        }
+        .error {
+            background: #ffe5e5;
+            color: #a32121;
+            padding: 12px;
+            border-radius: 8px;
+        }
+        .note { color: #777; font-size: 13px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h2>EventEase - Account Settings</h2>
+</header>
+
+<div class="container">
+
+    <div class="card">
+        <h3>Profile Details</h3>
+
+        <div class="detail">
+            <strong>Username:</strong>
+            <span th:text="${user.username}"></span>
+        </div>
+
+        <div class="detail">
+            <strong>Email:</strong>
+            <span th:text="${user.email}"></span>
+        </div>
+
+        <div class="detail">
+            <strong>Account Role:</strong>
+            <span th:text="${user.role}"></span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Change Password</h3>
+
+        <p th:if="${successMessage}" class="success"
+           th:text="${successMessage}"></p>
+
+        <p th:if="${errorMessage}" class="error"
+           th:text="${errorMessage}"></p>
+
+        <form th:action="@{/settings/password}" method="post">
+
+            <label>Current Password</label>
+            <input type="password" name="currentPassword"
+                   autocomplete="current-password" required>
+
+            <label>New Password</label>
+            <input type="password" name="newPassword"
+                   minlength="8" autocomplete="new-password" required>
+
+            <label>Confirm New Password</label>
+            <input type="password" name="confirmPassword"
+                   minlength="8" autocomplete="new-password" required>
+
+            <p class="note">New password must contain at least 8 characters.</p>
+
+            <button type="submit">Update Password</button>
+        </form>
+    </div>
+
+    <a th:href="@{/}" class="back">Back to Dashboard</a>
+
+</div>
+
+</body>
+</html>

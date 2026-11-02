@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookings | EventEase</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+
+    <style>
+        .booking-page {
+            padding: 25px;
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        .booking-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .booking-table-wrap {
+            overflow-x: auto;
+            background: white;
+            border-radius: 14px;
+            padding: 15px;
+        }
+
+        .booking-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 850px;
+        }
+
+        .booking-table th,
+        .booking-table td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .booking-table th {
+            background: #f5f2ff;
+            color: #5836a5;
+        }
+
+        .back-link {
+            display: inline-block;
+            padding: 10px 18px;
+            background: #6842b8;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+        }
+
+        .cancel-button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 9px 13px;
+            border-radius: 7px;
+            cursor: pointer;
+        }
+
+        .cancelled-status {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .active-status {
+            color: #198754;
+            font-weight: bold;
+        }
+
+        .message {
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+        }
+
+        .success {
+            background: #d1e7dd;
+            color: #0f5132;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #842029;
+        }
+
+        .empty-bookings {
+            text-align: center;
+            padding: 35px;
+            color: #777;
+        }
+    </style>
+</head>
+
+<body>
+<div class="booking-page">
+
+    <div class="booking-header">
+        <div>
+            <h1>Booking History</h1>
+            <p th:if="${totalBookings != null}"
+               th:text="'Total bookings: ' + ${totalBookings}">
+            </p>
+        </div>
+
+        <a th:href="@{/}" class="back-link">Back to Dashboard</a>
+    </div>
+
+    <div th:if="${successMessage}" class="message success"
+         th:text="${successMessage}"></div>
+
+    <div th:if="${errorMessage}" class="message error"
+         th:text="${errorMessage}"></div>
+
+    <div class="booking-table-wrap">
+
+        <table class="booking-table"
+               th:if="${not #lists.isEmpty(bookings)}">
+
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Customer</th>
+                <th>Email</th>
+                <th>Event</th>
+                <th>Tickets</th>
+                <th>Amount</th>
+                <th>Booking Date</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+            </thead>
+
+            <tbody>
+            <tr th:each="booking : ${bookings}">
+
+                <td th:text="${booking.id}"></td>
+                <td th:text="${booking.customerName}"></td>
+                <td th:text="${booking.customerEmail}"></td>
+                <td th:text="${booking.event.title}"></td>
+                <td th:text="${booking.numberOfTickets}"></td>
+                <td th:text="'₹' + ${booking.totalAmount}"></td>
+
+                <td th:text="${#temporals.format(booking.bookingDate, 'dd-MM-yyyy HH:mm')}"></td>
+
+                <td>
+                    <span th:if="${booking.cancelled}"
+                          class="cancelled-status">Cancelled</span>
+
+                    <span th:unless="${booking.cancelled}"
+                          class="active-status">Confirmed</span>
+                </td>
+
+                <td>
+                    <form th:if="${not booking.cancelled}"
+                          th:action="@{/bookings/cancel/{id}(id=${booking.id})}"
+                          method="post"
+                          onsubmit="return confirm('Are you sure you want to cancel this booking?');">
+
+                        <button type="submit" class="cancel-button">
+                            Cancel Booking
+                        </button>
+                    </form>
+
+                    <span th:if="${booking.cancelled}">—</span>
+                </td>
+
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="empty-bookings"
+             th:if="${#lists.isEmpty(bookings)}">
+            <h2>No bookings yet</h2>
+            <p>Your booking history will appear here.</p>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>
