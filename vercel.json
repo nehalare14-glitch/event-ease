@@ -1,0 +1,8 @@
+﻿{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "https://eventease-1-mtp7.onrender.com/$1"
+    }
+  ]
+}
