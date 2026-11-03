@@ -9,3 +9,9 @@
 .idea/
 .vscode/
 .DS_Store
+.vercel
+
+/migration/export/
+/migration/working/
+/migration/*.class
+*service-account*.json

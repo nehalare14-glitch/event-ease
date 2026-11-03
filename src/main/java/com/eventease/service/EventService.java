@@ -17,7 +17,7 @@ public class EventService {
     }
 
     public List<Event> getAllEvents() {
-        return eventRepository.findAll();
+        return eventRepository.findByArchivedFalse();
     }
 
     public Optional<Event> getEventById(Long id) {
@@ -29,10 +29,15 @@ public class EventService {
     }
 
     public void deleteEvent(Long id) {
-        eventRepository.deleteById(id);
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Event not found."));
+
+        event.setArchived(true);
+        eventRepository.save(event);
     }
 
     public long getTotalEvents() {
-        return eventRepository.count();
+        return eventRepository.countByArchivedFalse();
     }
 }

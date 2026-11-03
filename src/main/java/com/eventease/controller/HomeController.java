@@ -98,9 +98,25 @@ public class HomeController {
             @PathVariable Long id,
             RedirectAttributes redirectAttributes) {
 
-        eventService.deleteEvent(id);
-        redirectAttributes.addFlashAttribute(
-                "successMessage", "Event deleted successfully!");
+        try {
+            eventService.deleteEvent(id);
+
+            redirectAttributes.addFlashAttribute(
+                    "successMessage",
+                    "Event deleted successfully!");
+
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+
+            redirectAttributes.addFlashAttribute(
+                    "errorMessage",
+                    "Cannot delete this event because it has associated bookings.");
+
+        } catch (Exception e) {
+
+            redirectAttributes.addFlashAttribute(
+                    "errorMessage",
+                    "Event deletion failed. Check the application logs.");
+        }
 
         return "redirect:/";
     }

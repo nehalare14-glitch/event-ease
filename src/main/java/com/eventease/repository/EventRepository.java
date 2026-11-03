@@ -6,4 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long> {
+    java.util.List<Event> findByArchivedFalse();
+    long countByArchivedFalse();
 }

@@ -27,6 +27,9 @@ public class Event {
 
     private int availableSeats;
 
+    @Column(nullable = false)
+    private boolean archived = false;
+
     public Event() {
     }
 
@@ -92,5 +95,13 @@ public class Event {
 
     public void setAvailableSeats(int availableSeats) {
         this.availableSeats = availableSeats;
+    }
+
+    public boolean isArchived() {
+        return archived;
+    }
+
+    public void setArchived(boolean archived) {
+        this.archived = archived;
     }
 }

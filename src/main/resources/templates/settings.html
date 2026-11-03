@@ -138,5 +138,100 @@
 
 </div>
 
+
+<section class="account-actions">
+    <h2>Account Actions</h2>
+    <p class="account-actions-subtitle">
+        Manage your EventEase account and navigation.
+    </p>
+
+    <div class="account-actions-grid">
+        <a th:href="@{/}" class="account-action">
+            <span>Dashboard</span>
+            <small>Return to your event overview</small>
+        </a>
+
+        <a th:href="@{/bookings}" class="account-action">
+            <span>My Bookings</span>
+            <small>View your event reservations</small>
+        </a>
+
+        <a th:href="@{/settings}" class="account-action">
+            <span>My Profile</span>
+            <small>View your account information</small>
+        </a>
+    </div>
+
+    <form th:action="@{/logout}" method="post">
+        <button type="submit" class="logout-button">
+            Log Out
+        </button>
+    </form>
+</section>
+
+<style>
+.account-actions {
+    background: white;
+    border-radius: 18px;
+    padding: 28px;
+    margin: 28px 0;
+}
+
+.account-actions h2 {
+    color: #5732b8;
+    margin: 0 0 8px;
+}
+
+.account-actions-subtitle {
+    color: #777;
+    margin-bottom: 20px;
+}
+
+.account-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.account-action {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 18px;
+    border: 1px solid #e5dff4;
+    border-radius: 12px;
+    color: #241c43;
+    text-decoration: none;
+    background: #faf9ff;
+}
+
+.account-action:hover {
+    background: #f0eaff;
+}
+
+.account-action span {
+    font-weight: 700;
+}
+
+.account-action small {
+    color: #777;
+}
+
+.logout-button {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 13px 28px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.logout-button:hover {
+    background: #b92332;
+}
+</style>
+
 </body>
 </html>

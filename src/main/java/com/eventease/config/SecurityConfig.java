@@ -1,14 +1,12 @@
-
 package com.eventease.config;
 
 import com.eventease.service.CustomUserDetailsService;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
 public class SecurityConfig {
@@ -23,7 +21,6 @@ public class SecurityConfig {
 
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
-
         return provider;
     }
 
@@ -38,12 +35,14 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/login",
+                    "/admin/login",
+                    "/auth/firebase/google",
                     "/register",
                     "/css/**",
                     "/js/**"
                 ).permitAll()
+                .requestMatchers("/admin/**").hasRole("ADMIN")
                 .requestMatchers(
-                    "/admin/**",
                     "/events/save",
                     "/events/delete/**"
                 ).hasRole("ADMIN")
@@ -62,4 +61,3 @@ public class SecurityConfig {
         return http.build();
     }
 }
-

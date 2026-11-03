@@ -56,13 +56,9 @@
             </div>
 
             <div class="profile">
-                <span class="avatar"
-                      th:text="${#strings.substring(#authentication.name, 0, 1).toUpperCase()}">
-                    U
-                </span>
-
-                <span th:text="${#authentication.name}">User</span>
-            </div>
+    <span class="avatar" th:text="${profileInitial}">U</span>
+    <span th:text="${profileDisplayName}">User</span>
+</div>
 
         </header>
 

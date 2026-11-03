@@ -22,6 +22,9 @@ public class User {
     @Column(nullable = false)
     private String role;
 
+
+    @Column(name = "firebase_uid", unique = true)
+    private String firebaseUid;
     public User() {
     }
 
@@ -64,4 +67,13 @@ public class User {
     public void setRole(String role) {
         this.role = role;
     }
+
+    public String getFirebaseUid() {
+        return firebaseUid;
+    }
+
+    public void setFirebaseUid(String firebaseUid) {
+        this.firebaseUid = firebaseUid;
+    }
 }
+

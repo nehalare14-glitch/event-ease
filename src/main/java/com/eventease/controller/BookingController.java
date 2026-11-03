@@ -1,8 +1,8 @@
 package com.eventease.controller;
 
 import com.eventease.model.User;
-import com.eventease.repository.UserRepository;
 import com.eventease.service.BookingService;
+import com.eventease.service.FirestoreUserLookupService;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -13,13 +13,13 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class BookingController {
 
     private final BookingService bookingService;
-    private final UserRepository userRepository;
+    private final FirestoreUserLookupService firestoreUserLookup;
 
     public BookingController(
             BookingService bookingService,
-            UserRepository userRepository) {
+            FirestoreUserLookupService firestoreUserLookup) {
         this.bookingService = bookingService;
-        this.userRepository = userRepository;
+        this.firestoreUserLookup = firestoreUserLookup;
     }
 
     @PostMapping("/bookings/create")
@@ -32,9 +32,18 @@ public class BookingController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            User user = userRepository.findByUsername(authentication.getName())
-                    .orElseThrow(() ->
-                            new IllegalStateException("User not found."));
+            User user;
+            try {
+                user = firestoreUserLookup
+                        .findByUsername(authentication.getName())
+                        .orElseThrow(() ->
+                                new IllegalStateException("User not found in Firestore."));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("User lookup interrupted.", e);
+            } catch (java.util.concurrent.ExecutionException e) {
+                throw new IllegalStateException("Firestore lookup failed.", e);
+            }
 
             if (!user.getEmail().equalsIgnoreCase(customerEmail.trim())) {
                 throw new IllegalArgumentException(
@@ -69,9 +78,18 @@ public class BookingController {
             RedirectAttributes redirectAttributes) {
 
         try {
-            User user = userRepository.findByUsername(authentication.getName())
-                    .orElseThrow(() ->
-                            new IllegalStateException("User not found."));
+            User user;
+            try {
+                user = firestoreUserLookup
+                        .findByUsername(authentication.getName())
+                        .orElseThrow(() ->
+                                new IllegalStateException("User not found in Firestore."));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("User lookup interrupted.", e);
+            } catch (java.util.concurrent.ExecutionException e) {
+                throw new IllegalStateException("Firestore lookup failed.", e);
+            }
 
             boolean isAdmin = authentication.getAuthorities().stream()
                     .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));

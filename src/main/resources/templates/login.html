@@ -71,12 +71,57 @@
             text-align: center;
         }
     </style>
+<style>
+.google-login-section {
+    text-align: center;
+    margin: 16px 0;
+}
+
+.login-divider {
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 12px;
+}
+
+.google-login-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 16px;
+    width: auto;
+    background: white;
+    color: #333;
+    border: 1px solid #dadce0;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.google-login-btn:hover {
+    background: #f7f4ff;
+    border-color: #6843d0;
+}
+
+.google-login-btn img {
+    width: 18px;
+    height: 18px;
+}
+
+#googleLoginError {
+    color: #c62828;
+    font-size: 12px;
+}
+</style>
+<meta name="_csrf" th:content="${_csrf.token}">
+<meta name="_csrf_header" th:content="${_csrf.headerName}">
 </head>
 <body>
 
 <div class="login-card">
 
-    <h1>✦ EventEase</h1>
+    <h1>EventEase</h1>
     <p>Sign in to manage your events.</p>
 
     <div th:if="${param.error}" class="message error">
@@ -103,15 +148,47 @@
                required
                autocomplete="current-password">
 
-        <button type="submit">Sign In</button>
+        <div style="margin:16px 0; display:flex; align-items:center; gap:10px;">
+    <input type="checkbox"
+           id="adminLogin"
+           name="adminLogin"
+           value="true"
+           style="width:18px; height:18px; accent-color:#6843d1;">
+    <label for="adminLogin" style="margin:0;">
+        Login as Admin
+    </label>
+</div>
+<button type="submit">Sign In</button>
 
     </form>
+<div class="google-login-section">
+    <div class="login-divider">OR</div>
+
+    <button type="button"
+            id="googleLoginBtn"
+            class="google-login-btn">
+
+        <img
+            src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+            alt=""
+            width="18"
+            height="18">
+
+        <span>Continue with Google</span>
+    </button>
+
+    <p id="googleLoginError" role="alert"></p>
+</div>
 
     <a class="register-link" th:href="@{/register}">
-        Create a customer account
+        Create a user account
     </a>
 
 </div>
+
+<script type="module" src="/js/firebase-google-login.js"></script>
+
+
 
 </body>
 </html>

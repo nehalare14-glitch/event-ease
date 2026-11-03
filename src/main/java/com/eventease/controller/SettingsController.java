@@ -2,6 +2,7 @@ package com.eventease.controller;
 
 import com.eventease.model.User;
 import com.eventease.repository.UserRepository;
+import com.eventease.service.FirestoreUserLookupService;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,24 +15,39 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class SettingsController {
 
     private final UserRepository userRepository;
+    private final FirestoreUserLookupService firestoreUserLookup;
     private final PasswordEncoder passwordEncoder;
 
     public SettingsController(
             UserRepository userRepository,
+            FirestoreUserLookupService firestoreUserLookup,
             PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.firestoreUserLookup = firestoreUserLookup;
         this.passwordEncoder = passwordEncoder;
     }
 
     @GetMapping("/settings")
     public String settings(Authentication authentication, Model model) {
 
-        User user = userRepository.findByUsername(authentication.getName())
-                .orElseThrow(() ->
-                        new IllegalStateException("User not found."));
+        User user;
+
+        try {
+            user = firestoreUserLookup
+                    .findByUsername(authentication.getName())
+                    .orElseThrow(() ->
+                            new IllegalStateException(
+                                    "User not found in Firestore."));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "User lookup interrupted.", e);
+        } catch (java.util.concurrent.ExecutionException e) {
+            throw new IllegalStateException(
+                    "Firestore user lookup failed.", e);
+        }
 
         model.addAttribute("user", user);
-
         return "settings";
     }
 
