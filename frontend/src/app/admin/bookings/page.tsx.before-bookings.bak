@@ -1,0 +1,41 @@
+﻿"use client";
+
+import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, onSnapshot } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import Sidebar from "@/components/layout/Sidebar";
+
+type Booking = {id: string; eventId: string; eventTitle: string; userId: string};
+export default function AdminBookingsPage() {
+  const [access, setAccess] = useState<"loading" | "admin" | "denied">("loading");
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [error, setError] = useState("");
+  useEffect(() => onAuthStateChanged(auth, async (user) => {
+    if (!user) {setAccess("denied"); return;}
+    try {setAccess((await user.getIdTokenResult()).claims.admin === true ? "admin" : "denied");}
+    catch {setAccess("denied");}
+  }), []);
+  useEffect(() => {
+    if (access !== "admin") return;
+    return onSnapshot(collection(db, "bookings"),
+      (snapshot) => setBookings(snapshot.docs.map((item) => ({id: item.id, ...item.data()} as Booking))),
+      (reason) => setError(reason.message));
+  }, [access]);
+  return <main className="min-h-screen bg-[#f8f9fd] text-slate-900"><Sidebar />
+    <div className="p-6 lg:ml-64 lg:p-10"><h1 className="text-3xl font-extrabold">Event Bookings</h1>
+      {access === "loading" ? <p className="mt-5">Checking access...</p> :
+       access === "denied" ? <p className="mt-5">Access Denied</p> : <>
+        {error && <p role="alert" className="mt-5 text-red-700">{error}</p>}
+        <p className="mt-3 text-slate-500">{bookings.length} confirmed bookings</p>
+        <div className="mt-6 grid gap-4">{bookings.map((booking) =>
+          <article key={booking.id} className="rounded-xl bg-white p-5 shadow-sm">
+            <h2 className="font-bold">{booking.eventTitle}</h2>
+            <p className="mt-2 break-all text-sm text-slate-500">Student UID: {booking.userId}</p>
+            <p className="mt-1 text-sm text-slate-500">Event ID: {booking.eventId}</p>
+          </article>)}
+          {bookings.length === 0 && <p>No bookings yet.</p>}
+        </div>
+      </>}
+    </div></main>;
+}

@@ -1,0 +1,57 @@
+﻿"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { collection, doc, onSnapshot, query, runTransaction, where } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import Sidebar from "@/components/layout/Sidebar";
+
+type Booking = { id: string; eventId: string; eventTitle: string; userId: string; createdAt?: unknown };
+
+export default function MyBookingsPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => onAuthStateChanged(auth, (current) => {setUser(current); setLoading(false);}), []);
+  useEffect(() => {
+    if (!user) {setBookings([]); return;}
+    return onSnapshot(query(collection(db, "bookings"), where("userId", "==", user.uid)),
+      (snapshot) => setBookings(snapshot.docs.map((item) => ({id: item.id, ...item.data()} as Booking))),
+      (reason) => setError(reason.message));
+  }, [user]);
+
+  async function cancel(booking: Booking) {
+    if (!user || booking.userId !== user.uid || !window.confirm("Cancel this booking?")) return;
+    setBusy(booking.id); setError("");
+    try {
+      const bookingRef = doc(db, "bookings", booking.id);
+      const eventRef = doc(db, "events", booking.eventId);
+      await runTransaction(db, async (transaction) => {
+        const bookingDoc = await transaction.get(bookingRef);
+        const eventDoc = await transaction.get(eventRef);
+        if (!bookingDoc.exists() || !eventDoc.exists()) throw new Error("Booking or event not found.");
+        const count = Number(eventDoc.data().bookedCount ?? 0);
+        if (count < 1) throw new Error("Invalid booking count. Contact an administrator.");
+        transaction.delete(bookingRef);
+        transaction.update(eventRef, {bookedCount: count - 1});
+      });
+    } catch (reason) {setError(reason instanceof Error ? reason.message : "Cancellation failed");}
+    finally {setBusy(null);}
+  }
+
+  return <main className="min-h-screen bg-[#f8f9fd] text-slate-900"><Sidebar />
+    <div className="px-6 py-12 lg:ml-64"><h1 className="text-3xl font-extrabold">My Bookings</h1>
+      {error && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}
+      {loading ? <p className="mt-6">Checking account...</p> : !user ? <p className="mt-6">Please <Link href="/login" className="text-violet-700 underline">log in</Link> to see bookings.</p> :
+        <div className="mt-8 grid gap-4">{bookings.length === 0 && <p>No bookings yet. <Link href="/#events" className="text-violet-700 underline">Explore events</Link>.</p>}
+          {bookings.map((booking) => <article key={booking.id} className="rounded-2xl bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-bold">{booking.eventTitle}</h2><p className="mt-2 text-slate-500">Confirmed booking</p>
+            <button disabled={busy !== null} onClick={() => cancel(booking)} className="mt-4 rounded-lg border border-red-200 px-4 py-2 text-red-700 disabled:opacity-50">Cancel Booking</button>
+          </article>)}
+        </div>}
+    </div></main>;
+}

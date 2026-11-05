@@ -1,0 +1,127 @@
+"use client";
+
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, deleteDoc, doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import Sidebar from "@/components/layout/Sidebar";
+
+const defaults = ["Technology", "Cultural", "Sports", "Workshops"];
+type Category = { id: string; name: string; description: string; active: boolean; sortOrder: number };
+type EventRecord = { id: string; category: string };
+const input = "w-full rounded-xl border border-slate-200 px-3 py-2 outline-none focus:border-violet-500";
+
+export default function CategoriesPage() {
+  const [authorized, setAuthorized] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [events, setEvents] = useState<EventRecord[]>([]);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => onAuthStateChanged(auth, async (user) => {
+    if (!user) { setAuthorized(false); setChecking(false); return; }
+    try { setAuthorized((await user.getIdTokenResult(true)).claims.admin === true); }
+    catch { setAuthorized(false); }
+    finally { setChecking(false); }
+  }), []);
+
+  useEffect(() => {
+    if (!authorized) return;
+    const stopCategories = onSnapshot(collection(db, "categories"), snapshot => {
+      setCategories(snapshot.docs.filter(d => d.id !== "_setup").map(d => {
+        const x = d.data();
+        return { id: d.id, name: String(x.name ?? d.id), description: String(x.description ?? ""), active: x.active === true, sortOrder: typeof x.sortOrder === "number" ? x.sortOrder : 0 };
+      }));
+    }, err => setError("Could not load categories: " + err.message));
+    const stopEvents = onSnapshot(collection(db, "events"), snapshot => {
+      setEvents(snapshot.docs.filter(d => d.id !== "_setup").map(d => ({ id: d.id, category: String(d.data().category ?? "") })));
+    }, err => setError("Could not load event counts: " + err.message));
+    return () => { stopCategories(); stopEvents(); };
+  }, [authorized]);
+
+  const counts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const event of events) m.set(event.category, (m.get(event.category) ?? 0) + 1);
+    return m;
+  }, [events]);
+  const rows = useMemo(() => categories.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase()) && (filter === "all" || (filter === "active") === c.active)
+  ).sort((a,b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)), [categories, search, filter]);
+
+  async function createCategory(categoryName: string, categoryDescription: string, order: number) {
+    const ref = doc(db, "categories", categoryName);
+    await runTransaction(db, async transaction => {
+      const current = await transaction.get(ref);
+      if (current.exists()) throw new Error("Category already exists.");
+      transaction.set(ref, { name: categoryName, description: categoryDescription, active: true, sortOrder: order, createdAt: serverTimestamp() });
+    });
+  }
+  async function add(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setError(""); setNotice("");
+    const n = name.trim().replace(/\s+/g, " ");
+    if (!/^[A-Za-z][A-Za-z0-9 &-]{1,49}$/.test(n)) { setError("Name must be 2–50 characters using letters, numbers, spaces, & or -."); return; }
+    if (categories.some(c => c.name.toLowerCase() === n.toLowerCase())) { setError("That category already exists."); return; }
+    setBusy(true);
+    try { await createCategory(n, description.trim(), categories.length + 1); setName(""); setDescription(""); setNotice("Category added."); }
+    catch (e) { setError(e instanceof Error ? e.message : "Unable to create category."); }
+    finally { setBusy(false); }
+  }
+  async function seed() {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      for (let i=0; i<defaults.length; i++) {
+        if (!categories.some(c => c.name === defaults[i])) {
+          try { await createCategory(defaults[i], "", i); }
+          catch (e) { if (!(e instanceof Error && e.message === "Category already exists.")) throw e; }
+        }
+      }
+      setNotice("Default categories initialized.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Initialization failed."); }
+    finally { setBusy(false); }
+  }
+  async function edit(c: Category) {
+    const next = window.prompt("Description (up to 300 characters):", c.description);
+    if (next === null) return;
+    if (next.length > 300) { setError("Description is too long."); return; }
+    try { await updateDoc(doc(db, "categories", c.id), { description: next }); setNotice("Category updated."); setError(""); }
+    catch (e) { setError(e instanceof Error ? e.message : "Update failed."); }
+  }
+  async function removeCategory(c: Category) {
+    setError(""); setNotice("");
+    if (busy) return;
+    if ((counts.get(c.name) ?? 0) > 0) {
+      setError("This category is assigned to events. Reassign those events before deleting it.");
+      return;
+    }
+    if (!window.confirm(`Permanently delete category "${c.name}"? This cannot be undone.`)) return;
+    setBusy(true);
+    try {
+      await deleteDoc(doc(db, "categories", c.id));
+      setNotice(`Category "${c.name}" deleted.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to delete category.");
+    } finally { setBusy(false); }
+  }
+  async function toggle(c: Category) {
+    if (c.active && (counts.get(c.name) ?? 0) > 0) { setError("Cannot deactivate a category assigned to events."); return; }
+    if (!window.confirm(`${c.active ? "Deactivate" : "Activate"} ${c.name}?`)) return;
+    try { await updateDoc(doc(db, "categories", c.id), { active: !c.active }); setNotice("Category status updated."); setError(""); }
+    catch (e) { setError(e instanceof Error ? e.message : "Status update failed."); }
+  }
+  if (checking) return <main className="p-8">Checking administrator access...</main>;
+  if (!authorized) return <main className="p-8"><h1 className="text-xl font-bold">Administrator access required</h1><Link className="text-violet-700" href="/admin/login">Admin login</Link></main>;
+  return <main className="min-h-screen bg-[#f8f9fd] text-slate-900"><Sidebar /><div className="px-6 py-10 lg:ml-64"><div className="mx-auto max-w-6xl space-y-6">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-3xl font-extrabold">Manage Categories</h1><p className="mt-1 text-slate-500">Create, organize and activate event categories.</p></div><Link href="/admin/add-event" className="rounded-xl bg-violet-700 px-4 py-3 font-semibold text-white">Add Event</Link></div>
+    <div className="grid gap-3 sm:grid-cols-3">{[["Total", categories.length],["Active",categories.filter(c=>c.active).length],["Inactive",categories.filter(c=>!c.active).length]].map(([label,value])=><div key={label} className="rounded-2xl bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">{label}</div><div className="text-3xl font-bold">{value}</div></div>)}</div>
+    {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-red-700">{error}</div>}{notice && <div role="status" className="rounded-xl bg-green-50 p-3 text-green-800">{notice}</div>}
+    <section className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="mb-3 text-xl font-bold">Add category</h2><form onSubmit={add} className="grid gap-3 md:grid-cols-[1fr_2fr_auto]"><input className={input} aria-label="Category name" placeholder="Category name" value={name} maxLength={50} onChange={e=>setName(e.target.value)} required/><input className={input} aria-label="Description" placeholder="Description (optional)" value={description} maxLength={300} onChange={e=>setDescription(e.target.value)}/><button disabled={busy} className="rounded-xl bg-violet-700 px-5 py-2 font-semibold text-white disabled:opacity-50">Add Category</button></form>{defaults.some(d=>!categories.some(c=>c.name===d)) && <button disabled={busy} onClick={seed} className="mt-4 rounded-lg border border-violet-300 px-4 py-2 text-sm font-semibold text-violet-700 disabled:opacity-50">Initialize missing default categories</button>}</section>
+    <section className="rounded-2xl bg-white p-5 shadow-sm"><div className="mb-4 flex flex-wrap gap-3"><input className={input + " max-w-sm"} aria-label="Search categories" placeholder="Search categories" value={search} onChange={e=>setSearch(e.target.value)}/><select className={input + " max-w-44"} aria-label="Filter categories" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select></div><div className="space-y-3">{rows.map(c=><div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 p-4"><div><h3 className="font-bold">{c.name} <span className="ml-2 text-xs font-normal text-slate-500">{c.active ? "Active" : "Inactive"}</span></h3><p className="text-sm text-slate-500">{c.description || "No description"} · {counts.get(c.name) ?? 0} events</p></div><div className="flex gap-2"><button disabled={busy} onClick={()=>edit(c)} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50">Edit</button><button disabled={busy} onClick={()=>toggle(c)} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50">{c.active ? "Deactivate" : "Activate"}</button><button disabled={busy || (counts.get(c.name) ?? 0) > 0} title={(counts.get(c.name) ?? 0) > 0 ? "Reassign existing events before deleting" : "Delete category"} onClick={()=>removeCategory(c)} className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-700 disabled:cursor-not-allowed disabled:opacity-40">Delete</button></div></div>)}{rows.length===0 && <p className="py-6 text-center text-slate-500">No matching categories.</p>}</div><p className="mt-4 text-xs text-slate-500">Names are permanent to protect existing events. Delete is available only when no events use a category; otherwise deactivate it.</p></section>
+  </div></div></main>;
+}

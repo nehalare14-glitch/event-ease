@@ -1,0 +1,50 @@
+﻿node_modules/
+.next/
+out/
+dist/
+build/
+
+.env
+.env.*
+!.env.example
+
+*service-account*.json
+*serviceAccount*.json
+*firebase-adminsdk*.json
+*.pem
+*.key
+
+.vercel/
+.firebase/
+firebase-debug.log
+npm-debug.log*
+
+# Local backups
+frontend/backups/
+*.backup
+*.bak
+*.original
+
+# Environment variables
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Firebase private credentials
+*service-account*.json
+*serviceAccount*.json
+*firebase-adminsdk*.json
+*.pem
+*.key
+
+# Local Firebase upload and verification scripts
+frontend/eventease-upload-four-events.cjs
+frontend/eventease-verify-upload.cjs
+
+# Build files
+**/node_modules/
+**/.next/
+**/.vercel/

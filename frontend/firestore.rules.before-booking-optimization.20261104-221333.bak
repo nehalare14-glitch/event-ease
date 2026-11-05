@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function admin() { return signedIn() && request.auth.token.admin == true; }
+    function student() { return signedIn() && request.auth.token.admin != true; }
+    function eventPath(id) { return /databases/$(database)/documents/events/$(id); }
+    function bookingPath(eventId, uid) { return /databases/$(database)/documents/bookings/$(eventId + '_' + uid); }
+
+    match /users/{userId} {
+      allow get: if signedIn() && (request.auth.uid == userId || admin());
+      allow list: if admin();
+      allow create: if student() && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['uid','name','email','role','createdAt'])
+        && request.resource.data.keys().hasAll(['uid','name','email','role','createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'student'
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.createdAt == request.time;
+      allow update: if student() && request.auth.uid == userId
+        && resource.data.role == 'student'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','location','coordinates'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && (!('location' in request.resource.data) || (request.resource.data.location is string && request.resource.data.location.size() <= 150))
+        && (!('coordinates' in request.resource.data) || (
+          request.resource.data.coordinates is map
+          && request.resource.data.coordinates.keys().hasOnly(['latitude','longitude'])
+          && request.resource.data.coordinates.keys().hasAll(['latitude','longitude'])
+          && request.resource.data.coordinates.latitude is number
+          && request.resource.data.coordinates.longitude is number
+          && request.resource.data.coordinates.latitude >= -90
+          && request.resource.data.coordinates.latitude <= 90
+          && request.resource.data.coordinates.longitude >= -180
+          && request.resource.data.coordinates.longitude <= 180));
+      allow delete: if false;
+    }
+
+    match /events/{eventId} {
+      allow get: if resource.data.status == 'published' || admin();
+      allow list: if admin() || resource.data.status == 'published';
+      allow create: if admin()
+        && request.resource.data.keys().hasOnly(['title','description','category','date','time','location','seats','createdBy','createdAt','status','bookedCount'])
+        && request.resource.data.keys().hasAll(['title','description','category','date','time','location','seats','createdBy','createdAt','status'])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.status == 'published'
+        && (!('bookedCount' in request.resource.data) || request.resource.data.bookedCount == 0)
+        && validEvent(request.resource.data);
+      allow update: if (
+        admin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','description','category','date','time','location','seats'])
+        && validEvent(request.resource.data)
+        && request.resource.data.seats >= (('bookedCount' in resource.data) ? resource.data.bookedCount : 0)
+      ) || (
+        student()
+        && resource.data.status == 'published'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bookedCount'])
+        && request.resource.data.bookedCount is int
+        && (
+          (request.resource.data.bookedCount == (('bookedCount' in resource.data) ? resource.data.bookedCount : 0) + 1
+            && request.resource.data.bookedCount <= resource.data.seats
+            && !exists(bookingPath(eventId, request.auth.uid))
+            && getAfter(bookingPath(eventId, request.auth.uid)).data.userId == request.auth.uid
+            && getAfter(bookingPath(eventId, request.auth.uid)).data.eventId == eventId
+            && getAfter(bookingPath(eventId, request.auth.uid)).data.eventTitle == resource.data.title)
+          ||
+          (request.resource.data.bookedCount == resource.data.bookedCount - 1
+            && resource.data.bookedCount > 0
+            && exists(bookingPath(eventId, request.auth.uid))
+            && !existsAfter(bookingPath(eventId, request.auth.uid)))
+        )
+      );
+      allow delete: if admin() && (!('bookedCount' in resource.data) || resource.data.bookedCount == 0);
+    }
+
+    function validEvent(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 100
+        && data.description is string && data.description.size() > 0 && data.description.size() <= 2000
+        && data.category in ['Technology','Cultural','Sports','Workshops']
+        && data.date is string && data.date.size() == 10
+        && data.time is string && data.time.size() == 5
+        && data.location is string && data.location.size() > 0 && data.location.size() <= 150
+        && data.seats is int && data.seats >= 1 && data.seats <= 100000;
+    }
+
+    match /bookings/{bookingId} {
+      allow get: if admin() || (student() && resource.data.userId == request.auth.uid);
+      allow list: if admin() || (student() && resource.data.userId == request.auth.uid);
+      allow create: if student()
+        && request.resource.data.keys().hasOnly(['userId','eventId','eventTitle','createdAt'])
+        && request.resource.data.keys().hasAll(['userId','eventId','eventTitle','createdAt'])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.eventId is string
+        && bookingId == request.resource.data.eventId + '_' + request.auth.uid
+        && request.resource.data.eventTitle is string
+        && request.resource.data.createdAt == request.time
+        && exists(eventPath(request.resource.data.eventId))
+        && get(eventPath(request.resource.data.eventId)).data.status == 'published'
+        && request.resource.data.eventTitle == get(eventPath(request.resource.data.eventId)).data.title
+        && getAfter(eventPath(request.resource.data.eventId)).data.bookedCount ==
+          (('bookedCount' in get(eventPath(request.resource.data.eventId)).data)
+            ? get(eventPath(request.resource.data.eventId)).data.bookedCount : 0) + 1;
+      allow delete: if student()
+        && resource.data.userId == request.auth.uid
+        && bookingId == resource.data.eventId + '_' + request.auth.uid
+        && exists(eventPath(resource.data.eventId))
+        && get(eventPath(resource.data.eventId)).data.bookedCount > 0
+        && getAfter(eventPath(resource.data.eventId)).data.bookedCount ==
+           get(eventPath(resource.data.eventId)).data.bookedCount - 1;
+      allow update: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

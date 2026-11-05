@@ -1,0 +1,900 @@
+﻿"use client";
+
+import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  onAuthStateChanged,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
+  sendPasswordResetEmail,
+  deleteUser,
+  type User,
+  updateProfile,
+} from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
+import { doc, deleteDoc, updateDoc } from "firebase/firestore";
+import Sidebar from "@/components/layout/Sidebar";
+import {
+  UserRound,
+  Mail,
+  ShieldCheck,
+  CalendarDays,
+  KeyRound,
+  Send,
+  Trash2,
+  X,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
+
+type Action = "change" | "delete" | null;
+
+export default function MyProfilePage() {
+  const router = useRouter();
+
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState("Student");
+  const [action, setAction] = useState<Action>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (currentUser) => {
+        if (!currentUser) {
+          if (active) {
+            setUser(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        try {
+          const token = await currentUser.getIdTokenResult(true);
+          if (!active) return;
+
+          setUser(currentUser);
+          setRole(
+            token.claims.admin === true
+              ? "Administrator"
+              : "Student"
+          );
+        } catch (error) {
+          console.error("Profile authentication error:", error);
+          if (active) setUser(null);
+        } finally {
+          if (active) setLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  function closeDialog() {
+    if (busy) return;
+    setAction(null);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setDeletePassword("");
+    setDeleteConfirmation("");
+    setMessage("");
+  }
+
+  function getErrorMessage(error: unknown): string {
+    const code =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error
+        ? String(error.code)
+        : "";
+
+    if (
+      code === "auth/wrong-password" ||
+      code === "auth/invalid-credential"
+    ) {
+      return "Incorrect current password.";
+    }
+
+    if (code === "auth/weak-password") {
+      return "Choose a stronger password.";
+    }
+
+    if (code === "auth/requires-recent-login") {
+      return "Please sign in again before performing this action.";
+    }
+
+    if (code === "auth/too-many-requests") {
+      return "Too many attempts. Please try again later.";
+    }
+
+    if (code === "auth/network-request-failed") {
+      return "Network error. Check your internet connection.";
+    }
+
+    if (code === "permission-denied") {
+      return "Firestore permissions prevented this operation.";
+    }
+
+    return "Something went wrong. Please try again.";
+  }
+
+  async function verifyPassword(
+    account: User,
+    password: string
+  ) {
+    if (!account.email) {
+      throw new Error("This account has no email address.");
+    }
+
+    const credential = EmailAuthProvider.credential(
+      account.email,
+      password
+    );
+
+    await reauthenticateWithCredential(account, credential);
+  }
+
+  async function handleChangePassword(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+    if (!user || busy) return;
+
+    setMessage("");
+    setSuccess(false);
+
+    if (newPassword.length < 8) {
+      setMessage("New password must contain at least 8 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setMessage("New passwords do not match.");
+      return;
+    }
+
+    if (newPassword === currentPassword) {
+      setMessage("Choose a password different from your current one.");
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      await verifyPassword(user, currentPassword);
+      await updatePassword(user, newPassword);
+
+      setAction(null);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+
+      setSuccess(true);
+      setMessage("Your password was changed successfully.");
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSendResetLink() {
+    if (!user?.email || busy) return;
+
+    setBusy(true);
+    setMessage("");
+    setSuccess(false);
+
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+
+      setSuccess(true);
+      setMessage(
+        "If this account is eligible, a password-reset link will be sent to your email. Check your inbox and spam folder."
+      );
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteAccount(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+    if (!user || busy || role === "Administrator") return;
+
+    if (deleteConfirmation !== "DELETE") {
+      setMessage('Type DELETE to confirm account deletion.');
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+    setSuccess(false);
+
+    try {
+      await verifyPassword(user, deletePassword);
+
+      // NOTE: Firestore deletion requires a matching security rule.
+      await deleteDoc(doc(db, "users", user.uid));
+
+      await deleteUser(user);
+
+      router.replace("/login");
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+      setBusy(false);
+    }
+  }
+
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editedName, setEditedName] = useState("");
+  const [editedLocation, setEditedLocation] = useState("");
+  const [editedCoordinates, setEditedCoordinates] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [editLocationLoading, setEditLocationLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
+  const [profileSuccess, setProfileSuccess] = useState(false);
+  const [detectedLocationName, setDetectedLocationName] = useState("");
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationMessage, setLocationMessage] = useState("");
+  const [currentLocation, setCurrentLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  async function handleSaveProfile(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!user || profileSaving || role === "Administrator") {
+      return;
+    }
+
+    const cleanName = editedName.trim();
+
+    if (cleanName.length < 1 || cleanName.length > 100) {
+      setProfileSuccess(false);
+      setProfileMessage(
+        "Full name must contain between 1 and 100 characters."
+      );
+      return;
+    }
+
+    setProfileSaving(true);
+    setProfileMessage("");
+    setProfileSuccess(false);
+
+    try {
+      // Firestore rules must permit updating the name field.
+      await updateDoc(doc(db, "users", user.uid), { name: cleanName });
+
+      await updateProfile(user, {
+        displayName: cleanName,
+      });
+
+      setUser({ ...user, displayName: cleanName } as User);
+      setEditingProfile(false);
+      setProfileSuccess(true);
+      setProfileMessage("Profile updated successfully.");
+    } catch (error) {
+      console.error("Profile update error:", error);
+      setProfileSuccess(false);
+      setProfileMessage(
+        "Unable to save your name. Check your Firestore permissions."
+      );
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+  const name =
+    user?.displayName?.trim() ||
+    user?.email?.split("@")[0] ||
+    "User";
+
+  return (
+    <main className="min-h-screen bg-[#f8f9fd] text-slate-900">
+      <Sidebar />
+
+      <div className="lg:ml-64">
+        <div className="mx-auto max-w-5xl px-6 py-12">
+          <h1 className="text-4xl font-extrabold">
+            My Profile
+          </h1>
+
+          <p className="mt-3 text-slate-500">
+            Manage your Event Ease account and security settings.
+          </p>
+
+          {loading ? (
+            <p className="mt-10 text-slate-500">
+              Loading your profile...
+            </p>
+          ) : !user ? (
+            <div className="mt-10 rounded-2xl bg-white p-8 shadow-sm">
+              <p className="text-slate-600">
+                Please log in to view your profile.
+              </p>
+              <Link
+                href="/login"
+                className="mt-5 inline-flex rounded-xl bg-violet-700 px-5 py-3 font-semibold text-white"
+              >
+                Login
+              </Link>
+            </div>
+          ) : (
+            <>
+              <section className="mt-8 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-extrabold text-slate-900">
+                      Profile Tools
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Manage your profile and location.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditedName(name);
+                        setProfileMessage("");
+                        setEditingProfile(true);
+                      }}
+                      className="rounded-xl bg-violet-700 px-5 py-3 font-semibold text-white hover:bg-violet-800"
+                    >
+                      Edit Profile
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={locationLoading}
+                      className="rounded-xl border border-violet-200 px-5 py-3 font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-60"
+                    >
+                      {locationLoading
+                        ? "Finding Location..."
+                        : "Use My Current Location"}
+                    </button>
+                  </div>
+                </div>
+
+                {locationMessage && (
+                  <p
+                    role="status"
+                    className="mt-4 text-sm text-slate-600"
+                  >
+                    {locationMessage}
+                  </p>
+                )}
+
+                {currentLocation && (
+                  <div className="mt-4 rounded-xl bg-violet-50 p-4">
+                    <p className="font-semibold text-violet-800">
+                      Your Current Location
+                    </p>
+
+                                        <div className="mt-4 rounded-2xl bg-white p-5">
+                      <p className="text-xs font-bold uppercase tracking-wide text-violet-500">
+                        Detected Place
+                      </p>
+
+                      <p className="mt-2 text-xl font-extrabold leading-relaxed text-violet-900">
+                        {detectedLocationName ||
+                          (locationLoading
+                            ? "Finding your location..."
+                            : "Location name unavailable")}
+                      </p>
+
+                      <p className="mt-2 text-xs text-slate-500">
+                        Approximate area identified using OpenStreetMap.
+                      </p>
+                    </div>
+
+                    <a
+                      href={`https://www.google.com/maps?q=${currentLocation.latitude},${currentLocation.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-block text-sm font-semibold text-violet-700 underline"
+                    >
+                      View on Google Maps
+                    </a>
+                  </div>
+                )}
+              </section>
+              {editingProfile && role !== "Administrator" && (
+                <section
+                  id="edit-profile-section"
+                  className="mt-6 rounded-3xl border border-violet-200 bg-white p-6 shadow-sm"
+                >
+                  <h2 className="text-xl font-extrabold text-slate-900">
+                    Edit Profile
+                  </h2>
+
+                  <p className="mt-2 text-sm text-slate-500">
+                    Update your full name. Email and account role
+                    cannot be changed here.
+                  </p>
+
+                  <form
+                    onSubmit={handleSaveProfile}
+                    className="mt-6 space-y-5"
+                  >
+                    <div>
+                      <label
+                        htmlFor="edit-full-name"
+                        className="mb-2 block text-sm font-semibold text-slate-800"
+                      >
+                        Full Name
+                      </label>
+
+                      <input
+                        id="edit-full-name"
+                        type="text"
+                        required
+                        maxLength={100}
+                        value={editedName}
+                        onChange={(event) =>
+                          setEditedName(event.target.value)
+                        }
+                        disabled={profileSaving}
+                        className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-violet-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-semibold text-slate-800">
+                        Email Address
+                      </label>
+
+                      <input
+                        type="email"
+                        readOnly
+                        value={user.email || ""}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-100 p-3 text-slate-500"
+                      />
+                    </div>
+
+                    {profileMessage && (
+                      <p
+                        role="status"
+                        className="text-sm text-red-600"
+                      >
+                        {profileMessage}
+                      </p>
+                    )}
+
+                    <div>
+                      <label
+                        htmlFor="edit-location"
+                        className="mb-2 block text-sm font-semibold text-slate-800"
+                      >
+                        Location (City / Area)
+                      </label>
+
+                      <input
+                        id="edit-location"
+                        type="text"
+                        maxLength={150}
+                        placeholder="Enter your city or area"
+                        value={editedLocation}
+                        onChange={(event) => {
+                          setEditedLocation(event.target.value);
+                          setEditedCoordinates(null);
+                        }}
+                        disabled={profileSaving}
+                        className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-violet-500"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={handleSaveProfileLocation}
+                        disabled={editLocationLoading || profileSaving}
+                        className="mt-3 rounded-xl border border-violet-200 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-50"
+                      >
+                        {editLocationLoading
+                          ? "Detecting Location..."
+                          : "Use My Current Location"}
+                      </button>
+
+                      {editedCoordinates && (
+                        <p className="mt-3 text-sm text-slate-600">
+                          Coordinates detected:
+                          {" "}
+                          {editedCoordinates.latitude.toFixed(4)},
+                          {" "}
+                          {editedCoordinates.longitude.toFixed(4)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="submit"
+                        disabled={profileSaving}
+                        className="rounded-xl bg-violet-700 px-6 py-3 font-semibold text-white disabled:opacity-50"
+                      >
+                        {profileSaving
+                          ? "Saving..."
+                          : "Save Changes"}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={profileSaving}
+                        onClick={() => {
+                          setEditingProfile(false);
+                          setProfileMessage("");
+                        }}
+                        className="rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              )}
+
+              {profileMessage && !editingProfile && (
+                <p
+                  role="status"
+                  className={`mt-5 rounded-xl p-4 text-sm ${
+                    profileSuccess
+                      ? "bg-green-50 text-green-700"
+                      : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {profileMessage}
+                </p>
+              )}
+              <div className="mt-10 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+                <div className="bg-gradient-to-r from-violet-800 to-violet-600 px-8 py-10 text-white">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20">
+                    <UserRound size={38} />
+                  </div>
+
+                  <h2 className="mt-5 text-2xl font-bold">
+                    {name}
+                  </h2>
+
+                  <p className="mt-1 text-violet-100">
+                    {role} Account
+                  </p>
+                </div>
+
+                <div className="space-y-7 p-8">
+                  <div className="flex items-start gap-4">
+                    <UserRound className="text-violet-700" size={22} />
+                    <div>
+                      <p className="text-sm text-slate-500">
+                        Full Name
+                      </p>
+                      <p className="mt-1 font-semibold">
+                        {name}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <Mail className="text-violet-700" size={22} />
+                    <div>
+                      <p className="text-sm text-slate-500">
+                        Email Address
+                      </p>
+                      <p className="mt-1 break-all font-semibold">
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <ShieldCheck className="text-violet-700" size={22} />
+                    <div>
+                      <p className="text-sm text-slate-500">
+                        Account Type
+                      </p>
+                      <p className="mt-1 font-semibold">
+                        {role}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <CalendarDays className="text-violet-700" size={22} />
+                    <div>
+                      <p className="text-sm text-slate-500">
+                        Joined On
+                      </p>
+                      <p className="mt-1 font-semibold">
+                        {user.metadata.creationTime
+                          ? new Date(
+                              user.metadata.creationTime
+                            ).toLocaleDateString()
+                          : "Not available"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <section className="mt-8 rounded-3xl border border-slate-100 bg-white p-8 shadow-sm">
+                <h2 className="text-2xl font-extrabold">
+                  Account Security
+                </h2>
+
+                <p className="mt-2 text-sm text-slate-500">
+                  Manage your password and account access.
+                </p>
+
+                {message && !action && (
+                  <div
+                    role="status"
+                    className={`mt-6 flex items-start gap-2 rounded-xl p-4 text-sm ${
+                      success
+                        ? "bg-green-50 text-green-700"
+                        : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {success ? (
+                      <CheckCircle2 size={19} />
+                    ) : (
+                      <AlertCircle size={19} />
+                    )}
+                    <span>{message}</span>
+                  </div>
+                )}
+
+                <div className="mt-7 grid gap-4 md:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMessage("");
+                      setAction("change");
+                    }}
+                    className="flex items-center gap-4 rounded-2xl border border-slate-200 p-5 text-left transition hover:border-violet-300 hover:bg-violet-50"
+                  >
+                    <KeyRound className="text-violet-700" size={26} />
+                    <div>
+                      <p className="font-bold">Change Password</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Update your account password
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendResetLink}
+                    disabled={busy}
+                    className="flex items-center gap-4 rounded-2xl border border-slate-200 p-5 text-left transition hover:border-violet-300 hover:bg-violet-50 disabled:opacity-60"
+                  >
+                    <Send className="text-violet-700" size={26} />
+                    <div>
+                      <p className="font-bold">
+                        Send Reset Password Link
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Receive a secure reset email
+                      </p>
+                    </div>
+                  </button>
+                </div>
+              </section>
+
+              {role !== "Administrator" && (
+                <section className="mt-8 rounded-3xl border border-red-100 bg-white p-8 shadow-sm">
+                  <h2 className="text-xl font-extrabold text-red-700">
+                    Danger Zone
+                  </h2>
+
+                  <p className="mt-2 text-sm text-slate-500">
+                    Deleting your account is permanent.
+                    This action cannot be undone.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMessage("");
+                      setAction("delete");
+                    }}
+                    className="mt-6 inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700"
+                  >
+                    <Trash2 size={18} />
+                    Delete My Account
+                  </button>
+                </section>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {action && user && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="account-dialog-title"
+            className="w-full max-w-md rounded-3xl bg-white p-7 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <h2
+                id="account-dialog-title"
+                className="text-2xl font-extrabold"
+              >
+                {action === "change"
+                  ? "Change Password"
+                  : "Delete Account"}
+              </h2>
+
+              <button
+                type="button"
+                onClick={closeDialog}
+                disabled={busy}
+                aria-label="Close dialog"
+              >
+                <X size={23} />
+              </button>
+            </div>
+
+            {message && (
+              <div
+                role="alert"
+                className="mt-5 flex gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-700"
+              >
+                <AlertCircle size={18} />
+                {message}
+              </div>
+            )}
+
+            {action === "change" ? (
+              <form
+                onSubmit={handleChangePassword}
+                className="mt-6 space-y-4"
+              >
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={(e) =>
+                      setCurrentPassword(e.target.value)
+                    }
+                    className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-violet-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(e) =>
+                      setNewPassword(e.target.value)
+                    }
+                    className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-violet-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) =>
+                      setConfirmPassword(e.target.value)
+                    }
+                    className="w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-violet-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="w-full rounded-xl bg-violet-700 p-3 font-bold text-white disabled:opacity-60"
+                >
+                  {busy ? "Updating..." : "Update Password"}
+                </button>
+              </form>
+            ) : (
+              <form
+                onSubmit={handleDeleteAccount}
+                className="mt-6 space-y-4"
+              >
+                <p className="text-sm leading-6 text-red-700">
+                  This will permanently delete your Event Ease
+                  account. Please confirm before continuing.
+                </p>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    value={deletePassword}
+                    onChange={(e) =>
+                      setDeletePassword(e.target.value)
+                    }
+                    className="w-full rounded-xl border border-slate-200 p-3"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold">
+                    Type DELETE to confirm
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={deleteConfirmation}
+                    onChange={(e) =>
+                      setDeleteConfirmation(e.target.value)
+                    }
+                    placeholder="DELETE"
+                    className="w-full rounded-xl border border-slate-200 p-3"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={
+                    busy ||
+                    deleteConfirmation !== "DELETE"
+                  }
+                  className="w-full rounded-xl bg-red-600 p-3 font-bold text-white disabled:opacity-50"
+                >
+                  {busy ? "Deleting..." : "Permanently Delete Account"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+
+
+
+

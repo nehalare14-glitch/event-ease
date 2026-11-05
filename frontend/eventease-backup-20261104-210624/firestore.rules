@@ -1,0 +1,83 @@
+﻿rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId} {
+
+      // Students can read their own profile.
+      // Administrators can read student profiles.
+      allow get: if request.auth != null
+        && (
+          request.auth.uid == userId
+          || request.auth.token.admin == true
+        );
+
+      // Only administrators can list users.
+      allow list: if request.auth != null
+        && request.auth.token.admin == true;
+
+      // Students can create only their own student profile.
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.auth.token.admin != true
+        && request.resource.data.keys().hasOnly([
+          'uid', 'name', 'email', 'role', 'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'uid', 'name', 'email', 'role', 'createdAt'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'student'
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.createdAt == request.time;
+
+      // Students can edit their name, city and coordinates.
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && request.auth.token.admin != true
+        && resource.data.role == 'student'
+        && request.resource.data.diff(resource.data)
+             .affectedKeys().hasOnly([
+               'name', 'location', 'coordinates'
+             ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && (
+          !('location' in request.resource.data)
+          || (
+            request.resource.data.location is string
+            && request.resource.data.location.size() <= 150
+          )
+        )
+        && (
+          !('coordinates' in request.resource.data)
+          || (
+            request.resource.data.coordinates is map
+            && request.resource.data.coordinates.keys()
+                 .hasOnly(['latitude', 'longitude'])
+            && request.resource.data.coordinates.keys()
+                 .hasAll(['latitude', 'longitude'])
+            && request.resource.data.coordinates.latitude is number
+            && request.resource.data.coordinates.longitude is number
+            && request.resource.data.coordinates.latitude >= -90
+            && request.resource.data.coordinates.latitude <= 90
+            && request.resource.data.coordinates.longitude >= -180
+            && request.resource.data.coordinates.longitude <= 180
+          )
+        );
+
+      // Account deletion will be handled securely by the backend.
+      allow delete: if false;
+    }
+
+    // Other collections remain protected.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

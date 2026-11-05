@@ -1,0 +1,240 @@
+﻿"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import Sidebar from "@/components/layout/Sidebar";
+import {
+  CalendarDays,
+  Search,
+  MapPin,
+  Clock3,
+  Ticket,
+  ArrowRight,
+  Sparkles,
+} from "lucide-react";
+
+type EventItem = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  date: string;
+  time: string;
+  location: string;
+  seats: number;
+  bookedCount: number;
+};
+
+const colors: Record<string, string> = {
+  Technology: "from-violet-600 to-indigo-900",
+  Cultural: "from-pink-600 to-purple-900",
+  Sports: "from-blue-600 to-cyan-800",
+  Workshops: "from-emerald-600 to-teal-900",
+};
+
+export default function ExploreEvents() {
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const q = query(
+      collection(db, "events"),
+      where("status", "==", "published")
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const items = snapshot.docs
+          .filter((doc) => doc.id !== "_setup")
+          .map((doc) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              title: String(data.title ?? ""),
+              description: String(data.description ?? ""),
+              category: String(data.category ?? ""),
+              date: String(data.date ?? ""),
+              time: String(data.time ?? ""),
+              location: String(data.location ?? ""),
+              seats: Number(data.seats ?? 0),
+              bookedCount: Number(data.bookedCount ?? 0),
+            };
+          });
+
+        setEvents(items);
+        setLoading(false);
+        setError("");
+      },
+      (err) => {
+        console.error("Unable to load events:", err);
+        setError("Unable to load events. Please try again.");
+        setLoading(false);
+      }
+    );
+  }, []);
+
+  const categories = useMemo(
+    () => ["All", ...Array.from(new Set(events.map((e) => e.category).filter(Boolean)))],
+    [events]
+  );
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    return events
+      .filter((event) => {
+        const matchesSearch =
+          event.title.toLowerCase().includes(term) ||
+          event.description.toLowerCase().includes(term) ||
+          event.location.toLowerCase().includes(term);
+
+        const matchesCategory =
+          category === "All" || event.category === category;
+
+        return matchesSearch && matchesCategory;
+      })
+      .sort((a, b) =>
+        `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`)
+      );
+  }, [events, search, category]);
+
+  return (
+    <main className="min-h-screen bg-[#f8f9fd] text-slate-900">
+      <Sidebar />
+
+      <div className="px-5 py-10 lg:ml-64">
+        <div className="mx-auto max-w-6xl space-y-8">
+          <section className="rounded-3xl bg-gradient-to-r from-violet-800 to-indigo-950 p-8 text-white md:p-12">
+            <div className="mb-3 flex items-center gap-2 text-violet-200">
+              <Sparkles size={18} />
+              <span>Discover campus experiences</span>
+            </div>
+            <h1 className="max-w-2xl text-3xl font-extrabold md:text-5xl">
+              Explore Events
+            </h1>
+            <p className="mt-4 max-w-xl text-violet-100">
+              Discover upcoming events, explore your interests,
+              and reserve your spot.
+            </p>
+          </section>
+
+          <section className="space-y-4">
+            <div className="relative">
+              <Search
+                size={20}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                aria-label="Search events"
+                placeholder="Search events, descriptions or locations..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-white py-4 pl-12 pr-4 outline-none focus:border-violet-500"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {categories.map((item) => (
+                <button
+                  key={item}
+                  onClick={() => setCategory(item)}
+                  className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                    category === item
+                      ? "bg-violet-700 text-white"
+                      : "bg-white text-slate-600 hover:bg-violet-50"
+                  }`}
+                >
+                  {item === "All" ? "All Events" : item}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {error && (
+            <div role="alert" className="rounded-xl bg-red-50 p-4 text-red-700">
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <p className="py-12 text-center text-slate-500">
+              Loading events...
+            </p>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-2xl bg-white p-12 text-center">
+              <CalendarDays className="mx-auto mb-4 text-violet-600" size={40} />
+              <h2 className="text-xl font-bold">No events found</h2>
+              <p className="mt-2 text-slate-500">
+                Try another search or category, or check back later.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+              {filtered.map((event) => {
+                const available = Math.max(
+                  0,
+                  event.seats - event.bookedCount
+                );
+
+                return (
+                  <article
+                    key={event.id}
+                    className="overflow-hidden rounded-2xl bg-white shadow-sm"
+                  >
+                    <div
+                      className={`flex h-36 items-center justify-center bg-gradient-to-br ${
+                        colors[event.category] ?? "from-violet-600 to-slate-900"
+                      } text-white`}
+                    >
+                      <CalendarDays size={48} />
+                    </div>
+
+                    <div className="space-y-4 p-5">
+                      <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                        {event.category}
+                      </span>
+
+                      <h2 className="text-xl font-bold">{event.title}</h2>
+
+                      <p className="line-clamp-2 text-sm text-slate-500">
+                        {event.description}
+                      </p>
+
+                      <div className="space-y-2 text-sm text-slate-600">
+                        <p className="flex items-center gap-2">
+                          <CalendarDays size={16} /> {event.date}
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <Clock3 size={16} /> {event.time}
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <MapPin size={16} /> {event.location}
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <Ticket size={16} /> {available} seats available
+                        </p>
+                      </div>
+
+                      <Link
+                        href={`/events/${encodeURIComponent(event.id)}`}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-violet-700 px-4 py-3 font-semibold text-white hover:bg-violet-800"
+                      >
+                        View Details <ArrowRight size={17} />
+                      </Link>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
+  );
+}

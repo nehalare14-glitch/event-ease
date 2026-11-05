@@ -1,0 +1,160 @@
+const admin = require("firebase-admin");
+
+const projectId = "event-ease-72da6";
+const dryRun = !process.argv.includes("--upload");
+
+const events = [
+  {
+    id: "sports-championship-2026",
+    title: "Inter-Department Sports Championship 2026",
+    category: "Sports",
+    location: "College Sports Ground",
+    date: "2026-11-28",
+    time: "09:00",
+    seats: 200,
+    description:
+      "Join the Inter-Department Sports Championship 2026 featuring football, volleyball, badminton, and athletics. Represent your department, support your classmates, and enjoy a day of teamwork and friendly competition.",
+    organizer: "College Sports Committee",
+    schedule:
+      "9:00 AM – Registration and team check-in\n9:30 AM – Opening ceremony\n10:00 AM – Football and volleyball matches\n12:30 PM – Lunch break\n1:30 PM – Badminton and athletics\n4:00 PM – Finals and prize distribution",
+    eligibility:
+      "All enrolled college students. Participants must follow the event rules and team registration requirements.",
+    registrationDeadline: "2026-11-25",
+    contactInfo:
+      "Physical Education Department, College Sports Office",
+    instructions:
+      "Wear suitable sports clothing and footwear. Carry your college ID and a water bottle. Teams must report 30 minutes before their scheduled matches."
+  },
+  {
+    id: "tech-innovation-expo-2026",
+    title: "Tech Innovation Expo 2026",
+    category: "Technology",
+    location: "Computer Science Seminar Hall",
+    date: "2026-12-05",
+    time: "10:30",
+    seats: 120,
+    description:
+      "Explore the latest student innovations at Tech Innovation Expo 2026. Discover AI projects, robotics demonstrations, smart applications, and creative software solutions. Students can present their ideas and learn from other technology enthusiasts.",
+    organizer: "Computer Science Department and Tech Club",
+    schedule:
+      "10:30 AM – Welcome and introduction\n11:00 AM – Student project exhibition\n12:30 PM – AI and robotics demonstrations\n1:30 PM – Lunch break\n2:30 PM – Innovation presentations\n4:00 PM – Awards and closing remarks",
+    eligibility:
+      "Open to students from all departments. Project presenters must register their project details in advance.",
+    registrationDeadline: "2026-12-02",
+    contactInfo:
+      "Tech Club Coordinator, Computer Science Department",
+    instructions:
+      "Bring your college ID. Project presenters should arrive 30 minutes early and bring any required presentation materials."
+  },
+  {
+    id: "web-development-bootcamp-2026",
+    title: "Web Development Bootcamp 2026",
+    category: "Workshops",
+    location: "Computer Lab 2, IT Block",
+    date: "2026-12-12",
+    time: "09:30",
+    seats: 60,
+    description:
+      "Learn practical web development skills in this beginner-friendly bootcamp. Explore HTML, CSS, JavaScript, React, and the basics of building modern websites. The session includes guided exercises and a small hands-on project.",
+    organizer: "Department of Information Technology",
+    schedule:
+      "9:30 AM – Introduction to web development\n10:00 AM – HTML and CSS fundamentals\n11:30 AM – JavaScript basics\n12:30 PM – Lunch break\n1:30 PM – Introduction to React\n2:30 PM – Hands-on mini project\n3:30 PM – Questions and closing",
+    eligibility:
+      "Open to all college students. Basic computer knowledge is helpful, but programming experience is not required.",
+    registrationDeadline: "2026-12-09",
+    contactInfo:
+      "IT Department Workshop Coordinator",
+    instructions:
+      "Bring your college ID and a laptop if available. Lab computers may be used subject to availability. Arrive 15 minutes before the session."
+  },
+  {
+    id: "ai-ml-workshop-2026",
+    title: "AI and Machine Learning Workshop 2026",
+    category: "Workshops",
+    location: "Innovation Lab, Academic Block",
+    date: "2026-12-19",
+    time: "10:00",
+    seats: 80,
+    description:
+      "Discover how artificial intelligence and machine learning work through interactive explanations and beginner-friendly demonstrations. Learn about real-world AI applications, simple machine learning models, and responsible use of AI tools.",
+    organizer: "AI and Data Science Club",
+    schedule:
+      "10:00 AM – Introduction to artificial intelligence\n10:45 AM – Machine learning fundamentals\n11:30 AM – Real-world AI applications\n12:30 PM – Lunch break\n1:30 PM – Guided machine learning demonstration\n2:30 PM – Group activity and discussion\n3:30 PM – Questions and closing",
+    eligibility:
+      "Open to students from all departments. No prior AI or machine learning experience required.",
+    registrationDeadline: "2026-12-16",
+    contactInfo:
+      "AI and Data Science Club, Department Office",
+    instructions:
+      "Bring your college ID and a notebook or laptop if available. Arrive 15 minutes early. Follow the instructor's guidance during practical activities."
+  }
+];
+
+async function main() {
+  if (!dryRun && process.env.FIRESTORE_EMULATOR_HOST) {
+    throw new Error("Live upload blocked while emulator is configured.");
+  }
+
+  if (!dryRun) {
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+        projectId
+      });
+    }
+
+    const db = admin.firestore();
+
+    // Check all IDs before writing anything.
+    const refs = events.map((event) =>
+      db.collection("events").doc(event.id)
+    );
+
+    const snapshots = await db.getAll(...refs);
+
+    const existing = snapshots
+      .filter((snapshot) => snapshot.exists)
+      .map((snapshot) => snapshot.id);
+
+    if (existing.length > 0) {
+      throw new Error(
+        "Upload stopped. These IDs already exist: " +
+        existing.join(", ")
+      );
+    }
+
+    // Create-only writes prevent overwriting existing events.
+    const batch = db.batch();
+
+    for (const event of events) {
+      const { id, ...details } = event;
+
+      batch.create(db.collection("events").doc(id), {
+        ...details,
+        bookedCount: 0,
+        status: "published",
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    await batch.commit();
+
+    console.log("SUCCESS: Uploaded 4 events.");
+  } else {
+    console.log("PREVIEW MODE — NO FIRESTORE WRITES");
+    console.table(
+      events.map((event) => ({
+        id: event.id,
+        title: event.title,
+        category: event.category,
+        date: event.date,
+        seats: event.seats
+      }))
+    );
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

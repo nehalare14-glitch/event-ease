@@ -1,0 +1,523 @@
+﻿"use client";
+
+import { useEffect, useState } from "react";
+import {
+  onAuthStateChanged,
+  signOut,
+  type User,
+} from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import Link from "next/link";
+import Sidebar from "@/components/layout/Sidebar";
+
+import {
+  CalendarDays,
+  Search,
+  MapPin,
+  Clock3,
+  ArrowRight,
+  Ticket,
+  Users,
+  ShieldCheck,
+  PlusCircle,
+  LayoutDashboard,
+  Sparkles,
+  GraduationCap,
+  Music,
+  Code2,
+  Trophy,
+  LogIn,
+  LogOut,
+} from "lucide-react";
+
+type Role = "guest" | "student" | "admin";
+
+const events = [
+  {
+    id: 1,
+    title: "Tech Innovation Fest",
+    category: "Technology",
+    date: "15 DEC",
+    time: "10:00 AM",
+    location: "Main Auditorium",
+    seats: 120,
+    gradient: "from-violet-700 to-indigo-900",
+    icon: Code2,
+  },
+  {
+    id: 2,
+    title: "Cultural Night 2026",
+    category: "Cultural",
+    date: "20 DEC",
+    time: "5:00 PM",
+    location: "Open Air Theatre",
+    seats: 250,
+    gradient: "from-pink-600 to-purple-900",
+    icon: Music,
+  },
+  {
+    id: 3,
+    title: "Annual Sports Meet",
+    category: "Sports",
+    date: "24 DEC",
+    time: "9:00 AM",
+    location: "College Ground",
+    seats: 180,
+    gradient: "from-blue-600 to-cyan-800",
+    icon: Trophy,
+  },
+];
+
+const categories = [
+  { name: "Technology", icon: Code2 },
+  { name: "Cultural", icon: Music },
+  { name: "Sports", icon: Trophy },
+  { name: "Workshops", icon: GraduationCap },
+];
+
+export default function Home() {
+  const [role, setRole] = useState<Role>("guest");
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (currentUser) => {
+        if (!currentUser) {
+          if (active) {
+            setUser(null);
+            setRole("guest");
+            setAuthLoading(false);
+          }
+          return;
+        }
+
+        try {
+          const token = await currentUser.getIdTokenResult(true);
+
+          if (!active) return;
+
+          setUser(currentUser);
+          setRole(
+            token.claims.admin === true ? "admin" : "student"
+          );
+        } catch (error) {
+          console.error("Unable to verify account role:", error);
+
+          if (active) {
+            setUser(null);
+            setRole("guest");
+          }
+        } finally {
+          if (active) setAuthLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  async function handleLogout() {
+    try {
+      await signOut(auth);
+      setUser(null);
+      setRole("guest");
+    } catch (error) {
+      console.error("Logout failed:", error);
+      window.alert("Unable to log out. Please try again.");
+    }
+  }
+  const [publishedEvents, setPublishedEvents] = useState<Array<{
+    id: string;
+    title: string;
+    category: string;
+    date: string;
+    time: string;
+    location: string;
+    seats: number;
+    description: string;
+  }>>([]);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      query(collection(db, "events"), where("status", "==", "published")),
+      (snapshot) => {
+        const loadedEvents = snapshot.docs
+          .map((doc) => {
+            const data = doc.data();
+
+            return {
+              id: doc.id,
+              title: String(data.title || ""),
+              category: String(data.category || ""),
+              date: String(data.date || ""),
+              time: String(data.time || ""),
+              location: String(data.location || ""),
+              seats: Number(data.seats || 0),
+              description: String(data.description || ""),
+              status: String(data.status || ""),
+            };
+          })
+          .filter(
+            (event) =>
+              event.status === "published" &&
+              event.title.trim().length > 0
+          );
+
+        setPublishedEvents(loadedEvents);
+      },
+      (error) => {
+        console.error("Unable to load Firestore events:", error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All");
+
+  const allEvents = [
+    ...events,
+    ...publishedEvents.map((event) => {
+      const styles = {
+        Technology: {
+          icon: Code2,
+          gradient: "from-violet-700 to-indigo-900",
+        },
+        Cultural: {
+          icon: Music,
+          gradient: "from-pink-600 to-purple-900",
+        },
+        Sports: {
+          icon: Trophy,
+          gradient: "from-blue-600 to-cyan-800",
+        },
+        Workshops: {
+          icon: GraduationCap,
+          gradient: "from-emerald-600 to-teal-900",
+        },
+      }[event.category] || {
+        icon: CalendarDays,
+        gradient: "from-violet-600 to-indigo-800",
+      };
+
+      const eventDate = new Date(event.date + "T12:00:00");
+
+      const formattedDate = Number.isNaN(eventDate.getTime())
+        ? event.date
+        : eventDate
+            .toLocaleDateString("en-US", {
+              day: "2-digit",
+              month: "short",
+            })
+            .toUpperCase();
+
+      const eventTime = event.time.includes(":")
+        ? new Date("2000-01-01T" + event.time + ":00")
+        : null;
+
+      const formattedTime =
+        eventTime && !Number.isNaN(eventTime.getTime())
+          ? eventTime.toLocaleTimeString("en-US", {
+              hour: "numeric",
+              minute: "2-digit",
+            })
+          : event.time;
+
+      return {
+        id: event.id,
+        title: event.title,
+        category: event.category,
+        date: formattedDate,
+        time: formattedTime,
+        location: event.location,
+        seats: event.seats,
+        ...styles,
+      };
+    }),
+  ];
+
+  const filteredEvents = allEvents.filter((event) => {
+    const matchesSearch =
+      event.title.toLowerCase().includes(search.toLowerCase()) ||
+      event.location.toLowerCase().includes(search.toLowerCase());
+
+    const matchesCategory =
+      category === "All" || event.category === category;
+
+    return matchesSearch && matchesCategory;
+  });
+
+  return (
+    <main className="min-h-screen bg-[#f8f9fd] text-slate-900">
+      <Sidebar />
+      <div className="lg:ml-64">
+      {/* Navigation */}
+      
+
+      
+
+      {/* Hero */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#27105f] via-[#5525b5] to-[#8559e9] text-white">
+        <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute -bottom-40 -left-20 h-96 w-96 rounded-full bg-fuchsia-400/20 blur-3xl" />
+
+        <div className="relative mx-auto max-w-7xl px-6 py-24 md:py-32">
+          <div className="max-w-3xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-medium">
+              <Sparkles size={17} />
+              Your Campus. Your Events. One Platform.
+            </span>
+
+            <h1 className="mt-8 text-5xl font-extrabold leading-tight tracking-tight md:text-7xl">
+              Discover. Connect.
+              <span className="block text-violet-200">
+                Experience.
+              </span>
+            </h1>
+
+            <p className="mt-7 max-w-xl text-lg leading-8 text-violet-100">
+              From technical workshops to unforgettable cultural
+              nights, discover everything happening on your campus.
+            </p>
+
+            <div className="mt-10 flex flex-wrap gap-4">
+              <a
+                href="#events"
+                className="flex items-center gap-2 rounded-xl bg-white px-7 py-4 font-bold text-violet-700 shadow-lg transition hover:bg-violet-50"
+              >
+                Explore Events
+                <ArrowRight size={19} />
+              </a>
+
+              {!authLoading && !user && (
+                <Link
+                  href="/register"
+                  className="rounded-xl border border-white/30 bg-white/10 px-7 py-4 font-bold text-white transition hover:bg-white/20"
+                >
+                  Join Event Ease
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Categories */}
+      <section id="categories" className="mx-auto max-w-7xl px-6 py-20">
+        <div className="mb-10">
+          <h2 className="text-3xl font-extrabold md:text-4xl">
+            Explore Categories
+          </h2>
+          <p className="mt-3 text-slate-500">
+            Find events that match your interests.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {categories.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <button
+                key={item.name}
+                onClick={() => {
+                  setCategory(item.name);
+                  document.getElementById("events")?.scrollIntoView({
+                    behavior: "smooth",
+                  });
+                }}
+                className="group rounded-2xl border border-slate-100 bg-white p-7 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+              >
+                <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 group-hover:bg-violet-700 group-hover:text-white">
+                  <Icon size={27} />
+                </div>
+
+                <h3 className="font-bold">{item.name}</h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  Explore events
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Events */}
+      <section id="events" className="bg-white py-20">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mb-10 flex flex-wrap items-end justify-between gap-5">
+            <div>
+              <h2 className="text-3xl font-extrabold md:text-4xl">
+                Upcoming Events
+              </h2>
+              <p className="mt-3 text-slate-500">
+                Discover your next campus experience.
+              </p>
+            </div>
+
+            {!authLoading && role === "admin" && (
+              <Link
+                  href="/admin/add-event"
+                  className="flex items-center gap-2 rounded-xl bg-violet-700 px-5 py-3 font-semibold text-white transition hover:bg-violet-800"
+                >
+                  <PlusCircle size={18} />
+                  Add Event
+                </Link>
+            )}
+          </div>
+
+          <div className="mb-8 flex flex-wrap gap-3">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={19} />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search events or venues..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 outline-none focus:border-violet-500"
+              />
+            </div>
+
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-3.5 outline-none"
+              aria-label="Filter events by category"
+            >
+              <option value="All">All Categories</option>
+              {categories.map((item) => (
+                <option key={item.name} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid gap-7 md:grid-cols-2 lg:grid-cols-3">
+            {filteredEvents.map((event) => {
+              const Icon = event.icon;
+
+              return (
+                <article
+                  key={event.id}
+                  className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+                >
+                  <div className={`relative flex h-52 items-center justify-center bg-gradient-to-br ${event.gradient}`}>
+                    <Icon size={85} className="text-white/80" />
+
+                    <span className="absolute left-5 top-5 rounded-lg bg-white px-3 py-2 text-sm font-bold text-violet-700">
+                      {event.date}
+                    </span>
+
+                    <span className="absolute bottom-5 left-5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+                      {event.category}
+                    </span>
+                  </div>
+
+                  <div className="p-6">
+                    <h3 className="text-xl font-bold">
+                      {event.title}
+                    </h3>
+
+                    <div className="mt-5 space-y-3 text-sm text-slate-500">
+                      <p className="flex items-center gap-2">
+                        <MapPin size={17} />
+                        {event.location}
+                      </p>
+
+                      <p className="flex items-center gap-2">
+                        <Clock3 size={17} />
+                        {event.time}
+                      </p>
+
+                      <p className="flex items-center gap-2">
+                        <Users size={17} />
+                        {event.seats} seats available
+                      </p>
+                    </div>
+
+                    <div className="mt-6 border-t border-slate-100 pt-5">
+                      {authLoading ? (
+                        <span className="block py-3 text-center text-sm text-slate-500">
+                          Checking account...
+                        </span>
+                      ) : role === "admin" ? (
+                        <button
+                          disabled
+                          className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-violet-100 py-3 font-semibold text-violet-700 opacity-70"
+                        >
+                          <ShieldCheck size={17} />
+                          Manage Event (Coming Soon)
+                        </button>
+                      ) : role === "student" ? (
+                        <button
+                          disabled
+                          className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-violet-700 py-3 font-semibold text-white opacity-70"
+                        >
+                          <Ticket size={17} />
+                          Book Event (Coming Soon)
+                        </button>
+                      ) : (
+                        <Link
+                          href="/login"
+                          className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-700 py-3 font-semibold text-white hover:bg-violet-800"
+                        >
+                          Login to Book
+                          <ArrowRight size={17} />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {filteredEvents.length === 0 && (
+            <div className="rounded-2xl bg-slate-50 p-12 text-center text-slate-500">
+              No events found. Try another search or category.
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-[#180d46] px-6 py-12 text-white">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 md:flex-row">
+          <div className="flex items-center gap-3 text-xl font-bold">
+            <CalendarDays size={26} />
+            Event Ease
+          </div>
+
+          <p className="text-sm text-violet-200">
+            College Event Management System
+          </p>
+
+          <p className="text-sm text-violet-200">
+            © {new Date().getFullYear()} Event Ease
+          </p>
+        </div>
+      </footer>
+          
+          </div>
+    </main>
+  );
+}
+
+
+
+
+
+
+
+
+

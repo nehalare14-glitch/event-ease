@@ -1,0 +1,173 @@
+﻿"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  onAuthStateChanged,
+  type User,
+} from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import Sidebar from "@/components/layout/Sidebar";
+import {
+  UserRound,
+  Mail,
+  ShieldCheck,
+  CalendarDays,
+} from "lucide-react";
+
+export default function MyProfilePage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState("Student");
+
+  useEffect(() => {
+    let active = true;
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (currentUser) => {
+        if (!currentUser) {
+          if (active) {
+            setUser(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        try {
+          const token = await currentUser.getIdTokenResult(true);
+
+          if (!active) return;
+
+          setUser(currentUser);
+          setRole(
+            token.claims.admin === true
+              ? "Administrator"
+              : "Student"
+          );
+        } catch (error) {
+          console.error("Unable to load account:", error);
+          if (active) setUser(null);
+        } finally {
+          if (active) setLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const name =
+    user?.displayName?.trim() ||
+    user?.email?.split("@")[0] ||
+    "User";
+
+  return (
+    <main className="min-h-screen bg-[#f8f9fd]">
+      <Sidebar />
+
+      <div className="lg:ml-64">
+        <div className="mx-auto max-w-5xl px-6 py-12">
+          <h1 className="text-4xl font-extrabold text-slate-900">
+            My Profile
+          </h1>
+
+          <p className="mt-3 text-slate-500">
+            Your Event Ease account information.
+          </p>
+
+          {loading ? (
+            <p className="mt-10 text-slate-500">
+              Loading your profile...
+            </p>
+          ) : !user ? (
+            <div className="mt-10 rounded-2xl bg-white p-8 shadow-sm">
+              <p className="text-slate-600">
+                Please log in to view your profile.
+              </p>
+              <Link
+                href="/login"
+                className="mt-5 inline-flex rounded-xl bg-violet-700 px-5 py-3 font-semibold text-white"
+              >
+                Login
+              </Link>
+            </div>
+          ) : (
+            <div className="mt-10 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+              <div className="bg-gradient-to-r from-violet-800 to-violet-600 px-8 py-10 text-white">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20">
+                  <UserRound size={38} />
+                </div>
+
+                <h2 className="mt-5 text-2xl font-bold">
+                  {name}
+                </h2>
+
+                <p className="mt-1 text-violet-100">
+                  {role} Account
+                </p>
+              </div>
+
+              <div className="space-y-7 p-8">
+                <div className="flex items-start gap-4">
+                  <UserRound className="text-violet-700" size={22} />
+                  <div>
+                    <p className="text-sm text-slate-500">
+                      Full Name
+                    </p>
+                    <p className="mt-1 font-semibold text-slate-900">
+                      {name}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <Mail className="text-violet-700" size={22} />
+                  <div>
+                    <p className="text-sm text-slate-500">
+                      Email Address
+                    </p>
+                    <p className="mt-1 break-all font-semibold text-slate-900">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <ShieldCheck className="text-violet-700" size={22} />
+                  <div>
+                    <p className="text-sm text-slate-500">
+                      Account Type
+                    </p>
+                    <p className="mt-1 font-semibold text-slate-900">
+                      {role}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <CalendarDays className="text-violet-700" size={22} />
+                  <div>
+                    <p className="text-sm text-slate-500">
+                      Joined On
+                    </p>
+                    <p className="mt-1 font-semibold text-slate-900">
+                      {user.metadata.creationTime
+                        ? new Date(
+                            user.metadata.creationTime
+                          ).toLocaleDateString()
+                        : "Not available"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
+  );
+}

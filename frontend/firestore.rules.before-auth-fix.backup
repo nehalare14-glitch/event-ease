@@ -1,0 +1,480 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================
+    // AUTHENTICATION HELPERS
+    // =========================
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function admin() {
+      return signedIn()
+        && request.auth.token.admin == true;
+    }
+
+    function student() {
+      return signedIn()
+        && request.auth.token.admin != true;
+    }
+
+    function eventPath(id) {
+      return /databases/$(database)/documents/events/$(id);
+    }
+
+    function bookingPath(eventId, uid) {
+      return /databases/$(database)/documents/bookings/$(eventId + '_' + uid);
+    }
+
+    // =========================
+    // USER RULES
+    // =========================
+
+    match /users/{userId} {
+
+      allow get: if signedIn()
+        && (
+          request.auth.uid == userId
+          || admin()
+        );
+
+      allow list: if admin();
+
+      allow create: if student()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'name',
+          'email',
+          'role',
+          'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'name',
+          'email',
+          'role',
+          'createdAt'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'student'
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if student()
+        && request.auth.uid == userId
+        && resource.data.role == 'student'
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            'name',
+            'location',
+            'coordinates'
+          ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && (
+          !('location' in request.resource.data)
+          || (
+            request.resource.data.location is string
+            && request.resource.data.location.size() <= 150
+          )
+        )
+        && (
+          !('coordinates' in request.resource.data)
+          || (
+            request.resource.data.coordinates is map
+            && request.resource.data.coordinates.keys().hasOnly([
+              'latitude',
+              'longitude'
+            ])
+            && request.resource.data.coordinates.keys().hasAll([
+              'latitude',
+              'longitude'
+            ])
+            && request.resource.data.coordinates.latitude is number
+            && request.resource.data.coordinates.longitude is number
+            && request.resource.data.coordinates.latitude >= -90
+            && request.resource.data.coordinates.latitude <= 90
+            && request.resource.data.coordinates.longitude >= -180
+            && request.resource.data.coordinates.longitude <= 180
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // =========================
+    // BOOKING CREATION VALIDATION
+    // =========================
+
+    function validStudentBookingUpdate(eventId) {
+      let oldEvent = resource.data;
+      let newEvent = request.resource.data;
+      let booking = getAfter(
+        bookingPath(eventId, request.auth.uid)
+      ).data;
+
+      return student()
+        && oldEvent.status == 'published'
+        && newEvent.diff(oldEvent)
+          .affectedKeys().hasOnly(['bookedCount'])
+        && newEvent.bookedCount is int
+        && newEvent.bookedCount ==
+          (
+            ('bookedCount' in oldEvent)
+              ? oldEvent.bookedCount
+              : 0
+          ) + 1
+        && newEvent.bookedCount <= oldEvent.seats
+        && !exists(
+          bookingPath(eventId, request.auth.uid)
+        )
+        && booking.userId == request.auth.uid
+        && booking.eventId == eventId
+        && booking.eventTitle == oldEvent.title;
+    }
+
+    function validStudentBookingCreate(bookingId) {
+      let booking = request.resource.data;
+      let eventBefore = get(
+        eventPath(booking.eventId)
+      ).data;
+      let eventAfter = getAfter(
+        eventPath(booking.eventId)
+      ).data;
+
+      return student()
+        && booking.keys().hasOnly([
+          'userId',
+          'eventId',
+          'eventTitle',
+          'createdAt'
+        ])
+        && booking.keys().hasAll([
+          'userId',
+          'eventId',
+          'eventTitle',
+          'createdAt'
+        ])
+        && booking.userId == request.auth.uid
+        && booking.eventId is string
+        && bookingId ==
+          booking.eventId + '_' + request.auth.uid
+        && booking.eventTitle is string
+        && booking.createdAt == request.time
+        && eventBefore.status == 'published'
+        && booking.eventTitle == eventBefore.title
+        && eventAfter.bookedCount ==
+          (
+            ('bookedCount' in eventBefore)
+              ? eventBefore.bookedCount
+              : 0
+          ) + 1;
+    }
+
+    // =========================
+    // BOOKING CANCELLATION VALIDATION
+    // =========================
+
+    function validStudentBookingCancellation(eventId) {
+      let oldEvent = resource.data;
+      let newEvent = request.resource.data;
+      let path = bookingPath(
+        eventId,
+        request.auth.uid
+      );
+
+      return student()
+        && oldEvent.bookedCount is int
+        && oldEvent.bookedCount > 0
+        && newEvent.diff(oldEvent)
+          .affectedKeys().hasOnly(['bookedCount'])
+        && newEvent.bookedCount is int
+        && newEvent.bookedCount ==
+          oldEvent.bookedCount - 1
+        && exists(path)
+        && get(path).data.userId == request.auth.uid
+        && get(path).data.eventId == eventId
+        && !existsAfter(path);
+    }
+
+    // =========================
+    // CATEGORY RULES
+    // =========================
+
+    match /categories/{categoryId} {
+
+      allow get, list: if admin()
+        || resource.data.active == true;
+
+      allow create: if admin()
+        && categoryId == request.resource.data.name
+        && request.resource.data.keys().hasOnly([
+          'name',
+          'description',
+          'active',
+          'sortOrder',
+          'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'name',
+          'description',
+          'active',
+          'sortOrder',
+          'createdAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.matches(
+          '^[A-Za-z][A-Za-z0-9 &-]{1,49}$'
+        )
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 300
+        && request.resource.data.active == true
+        && request.resource.data.sortOrder is int
+        && request.resource.data.sortOrder >= 0
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if admin()
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            'description',
+            'active',
+            'sortOrder'
+          ])
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 300
+        && request.resource.data.active is bool
+        && request.resource.data.sortOrder is int
+        && request.resource.data.sortOrder >= 0;
+
+      allow delete: if false;
+    }
+
+    // =========================
+    // EVENT RULES
+    // =========================
+
+    match /events/{eventId} {
+
+      allow get: if admin()
+        || resource.data.status == 'published';
+
+      allow list: if admin()
+        || resource.data.status == 'published';
+
+      allow create: if admin()
+        && request.resource.data.keys().hasOnly([
+          'title',
+          'description',
+          'category',
+          'date',
+          'time',
+          'location',
+          'seats',
+          'createdBy',
+          'createdAt',
+          'status',
+          'bookedCount',
+          'organizer',
+          'schedule',
+          'eligibility',
+          'registrationDeadline',
+          'contactInfo',
+          'instructions'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title',
+          'description',
+          'category',
+          'date',
+          'time',
+          'location',
+          'seats',
+          'createdBy',
+          'createdAt',
+          'status'
+        ])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.status == 'published'
+        && (
+          !('bookedCount' in request.resource.data)
+          || request.resource.data.bookedCount == 0
+        )
+        && validEvent(request.resource.data)
+        && validEventDetails(request.resource.data);
+
+      allow update: if (
+        admin()
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly([
+            'title',
+            'description',
+            'category',
+            'date',
+            'time',
+            'location',
+            'seats',
+            'organizer',
+            'schedule',
+            'eligibility',
+            'registrationDeadline',
+            'contactInfo',
+            'instructions'
+          ])
+        && validEvent(request.resource.data)
+        && validEventDetails(request.resource.data)
+        && request.resource.data.seats >= (
+          ('bookedCount' in resource.data)
+            ? resource.data.bookedCount
+            : 0
+        )
+      )
+      || validStudentBookingUpdate(eventId)
+      || validStudentBookingCancellation(eventId);
+
+      allow delete: if admin()
+        && (
+          !('bookedCount' in resource.data)
+          || resource.data.bookedCount == 0
+        );
+    }
+
+    // =========================
+    // EVENT DETAIL VALIDATION
+    // =========================
+
+    function validEventDetails(data) {
+      return true
+        && (
+          !('organizer' in data)
+          || (
+            data.organizer is string
+            && data.organizer.size() <= 150
+          )
+        )
+        && (
+          !('schedule' in data)
+          || (
+            data.schedule is string
+            && data.schedule.size() <= 2000
+          )
+        )
+        && (
+          !('eligibility' in data)
+          || (
+            data.eligibility is string
+            && data.eligibility.size() <= 1000
+          )
+        )
+        && (
+          !('registrationDeadline' in data)
+          || (
+            data.registrationDeadline is string
+            && data.registrationDeadline.size() <= 10
+          )
+        )
+        && (
+          !('contactInfo' in data)
+          || (
+            data.contactInfo is string
+            && data.contactInfo.size() <= 200
+          )
+        )
+        && (
+          !('instructions' in data)
+          || (
+            data.instructions is string
+            && data.instructions.size() <= 2000
+          )
+        );
+    }
+
+    function validEvent(data) {
+      return data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 100
+        && data.description is string
+        && data.description.size() > 0
+        && data.description.size() <= 2000
+        && (
+          data.category is string
+          && exists(
+            /databases/$(database)/documents/categories/$(data.category)
+          )
+          && get(
+            /databases/$(database)/documents/categories/$(data.category)
+          ).data.active == true
+        )
+        && data.date is string
+        && data.date.size() == 10
+        && data.time is string
+        && data.time.size() == 5
+        && data.location is string
+        && data.location.size() > 0
+        && data.location.size() <= 150
+        && data.seats is int
+        && data.seats >= 1
+        && data.seats <= 100000;
+    }
+
+    // =========================
+    // BOOKING RULES
+    // =========================
+
+    match /bookings/{bookingId} {
+
+      // Admins can read all bookings.
+      // Students can read only their own bookings.
+
+      allow get: if admin()
+        || (
+          student()
+          && resource.data.userId == request.auth.uid
+        );
+
+      allow list: if admin()
+        || (
+          student()
+          && resource.data.userId == request.auth.uid
+        );
+
+      allow create: if validStudentBookingCreate(bookingId);
+
+      allow delete: if student()
+        && resource.data.userId == request.auth.uid
+        && bookingId ==
+          resource.data.eventId + '_' + request.auth.uid
+        && exists(
+          eventPath(resource.data.eventId)
+        )
+        && get(
+          eventPath(resource.data.eventId)
+        ).data.bookedCount > 0
+        && getAfter(
+          eventPath(resource.data.eventId)
+        ).data.bookedCount ==
+          get(
+            eventPath(resource.data.eventId)
+          ).data.bookedCount - 1;
+
+      allow update: if false;
+    }
+
+    // =========================
+    // DENY ALL OTHER ACCESS
+    // =========================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
