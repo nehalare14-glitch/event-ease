@@ -129,7 +129,7 @@ export default function ManageEventsPage() {
     <Sidebar />
     <div className="p-6 lg:ml-64 lg:p-10">
       {access === "loading" ? <p>Checking administrator access...</p> :
-       access === "denied" ? <p>Access Denied Ã¢â‚¬â€ administrators only.</p> : <>
+       access === "denied" ? <p>Access Denied - administrators only.</p> : <>
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div><h1 className="text-3xl font-extrabold">Manage Events</h1>
             <p className="mt-2 text-slate-500">Edit events and monitor booked seats.</p></div>
@@ -180,7 +180,7 @@ export default function ManageEventsPage() {
                 <button onClick={() => {setEditing(null); setDraft(null);}} className="rounded-lg border px-5 py-2">Cancel</button></div>
             </div> : <>
               <h2 className="text-xl font-bold">{event.title}</h2>
-              <p className="mt-2 text-slate-500">{event.date} Ã‚Â· {event.time} Ã‚Â· {event.location}</p>
+              <p className="mt-2 text-slate-500">{event.date}  -  {event.time}  -  {event.location}</p>
               <div className="mt-3 flex flex-wrap gap-2 text-sm"><span className="rounded-full bg-violet-50 px-3 py-1 text-violet-800">{event.category}</span><span className="rounded-full bg-slate-100 px-3 py-1 capitalize">{event.status}</span></div>
               <p className="mt-3">{event.bookedCount} booked / {event.seats} total seats · {Math.max(0, event.seats - event.bookedCount)} available</p>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-violet-600" style={{width: `${event.seats ? Math.min(100, 100 * event.bookedCount / event.seats) : 0}%`}} /></div>

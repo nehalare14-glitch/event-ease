@@ -109,7 +109,7 @@ function ActionCard({
         </span>
       </span>
 
-      <span className="text-xl text-slate-400">â†’</span>
+      <span className="text-xl text-slate-400">&rarr;</span>
     </Link>
   );
 }
@@ -361,25 +361,25 @@ export default function RoleDashboard({
           {
             label: "Total Events",
             value: events.filter((event) => event.title !== "Untitled event").length,
-            icon: "â–¦",
+            icon: "[E]",
             accent: "bg-purple-100 text-purple-700",
           },
           {
             label: "Total Bookings",
             value: bookings.length,
-            icon: "â–£",
+            icon: "[B]",
             accent: "bg-emerald-50 text-emerald-700",
           },
           {
             label: "Registered Students",
             value: studentCount,
-            icon: "â™™",
+            icon: "[U]",
             accent: "bg-sky-50 text-sky-700",
           },
           {
             label: "Active Categories",
             value: categoryCount,
-            icon: "â—ˆ",
+            icon: "[C]",
             accent: "bg-amber-50 text-amber-700",
           },
         ]
@@ -387,25 +387,25 @@ export default function RoleDashboard({
           {
             label: "Available Events",
             value: events.length,
-            icon: "â–¦",
+            icon: "[E]",
             accent: "bg-purple-100 text-purple-700",
           },
           {
             label: "My Bookings",
             value: bookings.length,
-            icon: "â–£",
+            icon: "[B]",
             accent: "bg-emerald-50 text-emerald-700",
           },
           {
             label: "My Upcoming Events",
             value: studentUpcoming.length,
-            icon: "â—·",
+            icon: "[>]",
             accent: "bg-sky-50 text-sky-700",
           },
           {
             label: "Upcoming Campus Events",
             value: upcomingEvents.length,
-            icon: "âœ¦",
+            icon: "[*]",
             accent: "bg-amber-50 text-amber-700",
           },
         ];
@@ -548,13 +548,13 @@ export default function RoleDashboard({
                         title="Manage Categories"
                         description="Organize event categories"
                         href="/admin/categories"
-                        icon="â—ˆ"
+                        icon="[C]"
                       />
                       <ActionCard
                         title="View Events"
                         description="Review published campus events"
                         href="/explore-events"
-                        icon="â–¦"
+                        icon="[E]"
                       />
                     </>
                   ) : (
@@ -563,13 +563,13 @@ export default function RoleDashboard({
                         title="Explore Events"
                         description="Find your next campus activity"
                         href="/explore-events"
-                        icon="âŒ•"
+                        icon="[T]"
                       />
                       <ActionCard
                         title="My Bookings"
                         description="View your registrations"
                         href="/my-bookings"
-                        icon="â–£"
+                        icon="[B]"
                       />
                     </>
                   )}
@@ -595,13 +595,13 @@ export default function RoleDashboard({
                     href="/explore-events"
                     className="text-sm font-semibold text-[#7615ed] hover:underline"
                   >
-                    Explore Events â†’
+                    Explore Events &rarr;
                   </Link>
                 </div>
 
                 {visibleEvents.length === 0 ? (
                   <div className="px-6 py-12 text-center">
-                    <div className="text-3xl">â–¦</div>
+                    <div className="text-3xl">[E]</div>
                     <h3 className="mt-3 font-semibold text-slate-800">
                       No events to display
                     </h3>
@@ -624,13 +624,13 @@ export default function RoleDashboard({
                           </h3>
                           <p className="mt-1 text-sm text-slate-500">
                             {event.date || "Date not set"}
-                            {event.time ? ` Â· ${event.time}` : ""}
-                            {event.location ? ` Â· ${event.location}` : ""}
+                            {event.time ? `  -  ${event.time}` : ""}
+                            {event.location ? `  -  ${event.location}` : ""}
                           </p>
                           <p className="mt-1 text-xs text-purple-200">
                             {event.category}
                             {role === "admin"
-                              ? ` Â· ${event.bookedCount}/${event.seats} booked`
+                              ? `  -  ${event.bookedCount}/${event.seats} booked`
                               : ""}
                           </p>
                         </div>
@@ -660,7 +660,7 @@ export default function RoleDashboard({
                     href="/explore-events"
                     className="mt-5 inline-block rounded-xl bg-white px-5 py-3 text-sm font-bold text-violet-700"
                   >
-                    Explore Events â†’
+                    Explore Events &rarr;
                   </Link>
                 </section>
               )}
