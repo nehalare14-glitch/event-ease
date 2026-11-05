@@ -15,6 +15,17 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import Sidebar from "@/components/layout/Sidebar";
+import {
+  CalendarDays,
+  Ticket,
+  Users,
+  LayoutGrid,
+  CalendarCheck,
+  CalendarClock,
+  Search,
+  Plus,
+  ArrowRight,
+} from "lucide-react";
 
 type Role = "admin" | "student";
 
@@ -57,6 +68,23 @@ function toEvent(id: string, data: DocumentData): EventItem {
   };
 }
 
+const dashboardIcons = {
+  "[E]": CalendarDays,
+  "[B]": Ticket,
+  "[U]": Users,
+  "[C]": LayoutGrid,
+  "[>]": CalendarCheck,
+  "[*]": CalendarClock,
+  "[T]": Search,
+  "+": Plus,
+};
+
+function DashboardIcon({ name }: { name: string }) {
+  const Icon =
+    dashboardIcons[name as keyof typeof dashboardIcons] ?? CalendarDays;
+
+  return <Icon size={23} strokeWidth={2} aria-hidden="true" />;
+}
 function MetricCard({ stat }: { stat: Stat }) {
   return (
     <div className="rounded-2xl border border-white/20 bg-white/10 p-5 text-white backdrop-blur-sm">
@@ -65,7 +93,7 @@ function MetricCard({ stat }: { stat: Stat }) {
           {stat.label}
         </span>
         <span className={`rounded-xl px-3 py-2 text-xl ${stat.accent}`}>
-          {stat.icon}
+          <DashboardIcon name={stat.icon} />
         </span>
       </div>
 
@@ -97,7 +125,7 @@ function ActionCard({
       className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-purple-300 hover:shadow-md"
     >
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-2xl text-violet-700">
-        {icon}
+        <DashboardIcon name={icon} />
       </span>
 
       <span className="min-w-0 flex-1">
@@ -109,7 +137,7 @@ function ActionCard({
         </span>
       </span>
 
-      <span className="text-xl text-slate-400">&rarr;</span>
+      <ArrowRight size={20} className="text-slate-400 transition-transform group-hover:translate-x-1" />
     </Link>
   );
 }
@@ -601,7 +629,7 @@ export default function RoleDashboard({
 
                 {visibleEvents.length === 0 ? (
                   <div className="px-6 py-12 text-center">
-                    <div className="text-3xl">[E]</div>
+                    <div className="flex justify-center text-violet-600"><CalendarDays size={36} /></div>
                     <h3 className="mt-3 font-semibold text-slate-800">
                       No events to display
                     </h3>
