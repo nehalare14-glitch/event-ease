@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import {
   CalendarDays,
   Sparkles,
@@ -105,7 +105,7 @@ export default function AuthLayout({
         </div>
 
         <p className="text-center text-xs text-slate-400">
-          © {new Date().getFullYear()} Event Ease. All rights reserved.
+          © 2026 Event Ease. All rights reserved.
         </p>
       </section>
     </main>

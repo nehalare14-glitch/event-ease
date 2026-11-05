@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -54,10 +54,16 @@ export default function AdminPanelPage() {
     return () => { stopEvents(); stopBookings(); };
   }, [access]);
 
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const [today, setToday] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+    setToday(currentDate);
+  }, []);
   const eventIds = useMemo(() => new Set(events.map((event) => event.id)), [events]);
   const relatedBookings = useMemo(() => bookings.filter((booking) => eventIds.has(booking.eventId)), [bookings, eventIds]);
-  const upcoming = events.filter((event) => { const date = eventDate(event.date); return date !== null && date >= today && !["cancelled", "completed", "draft"].includes(event.status.toLowerCase()); }).length;
+  const upcoming = events.filter((event) => { const date = eventDate(event.date); return date !== null && today !== null && date >= today && !["cancelled", "completed", "draft"].includes(event.status.toLowerCase()); }).length;
   const remainingSeats = events.reduce((sum, event) => sum + Math.max(0, event.seats - event.bookedCount), 0);
   const filtered = events.filter((event) => {
     const matchesText = `${event.title} ${event.category} ${event.location}`.toLowerCase().includes(search.trim().toLowerCase());

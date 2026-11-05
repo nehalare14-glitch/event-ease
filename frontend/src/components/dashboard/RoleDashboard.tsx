@@ -109,7 +109,7 @@ function ActionCard({
         </span>
       </span>
 
-      <span className="text-xl text-slate-400">→</span>
+      <span className="text-xl text-slate-400">â†’</span>
     </Link>
   );
 }
@@ -321,12 +321,18 @@ export default function RoleDashboard({
     !usersReady ||
     !categoriesReady;
 
-  const today = new Date();
-  const todayString = [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, "0"),
-    String(today.getDate()).padStart(2, "0"),
-  ].join("-");
+  const [todayString, setTodayString] = useState("");
+
+  useEffect(() => {
+    const today = new Date();
+    const formattedDate = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, "0"),
+      String(today.getDate()).padStart(2, "0"),
+    ].join("-");
+
+    setTodayString(formattedDate);
+  }, []);
 
   const upcomingEvents = events
     .filter(
@@ -355,25 +361,25 @@ export default function RoleDashboard({
           {
             label: "Total Events",
             value: events.filter((event) => event.title !== "Untitled event").length,
-            icon: "▦",
+            icon: "â–¦",
             accent: "bg-purple-100 text-purple-700",
           },
           {
             label: "Total Bookings",
             value: bookings.length,
-            icon: "▣",
+            icon: "â–£",
             accent: "bg-emerald-50 text-emerald-700",
           },
           {
             label: "Registered Students",
             value: studentCount,
-            icon: "♙",
+            icon: "â™™",
             accent: "bg-sky-50 text-sky-700",
           },
           {
             label: "Active Categories",
             value: categoryCount,
-            icon: "◈",
+            icon: "â—ˆ",
             accent: "bg-amber-50 text-amber-700",
           },
         ]
@@ -381,25 +387,25 @@ export default function RoleDashboard({
           {
             label: "Available Events",
             value: events.length,
-            icon: "▦",
+            icon: "â–¦",
             accent: "bg-purple-100 text-purple-700",
           },
           {
             label: "My Bookings",
             value: bookings.length,
-            icon: "▣",
+            icon: "â–£",
             accent: "bg-emerald-50 text-emerald-700",
           },
           {
             label: "My Upcoming Events",
             value: studentUpcoming.length,
-            icon: "◷",
+            icon: "â—·",
             accent: "bg-sky-50 text-sky-700",
           },
           {
             label: "Upcoming Campus Events",
             value: upcomingEvents.length,
-            icon: "✦",
+            icon: "âœ¦",
             accent: "bg-amber-50 text-amber-700",
           },
         ];
@@ -542,13 +548,13 @@ export default function RoleDashboard({
                         title="Manage Categories"
                         description="Organize event categories"
                         href="/admin/categories"
-                        icon="◈"
+                        icon="â—ˆ"
                       />
                       <ActionCard
                         title="View Events"
                         description="Review published campus events"
                         href="/explore-events"
-                        icon="▦"
+                        icon="â–¦"
                       />
                     </>
                   ) : (
@@ -557,13 +563,13 @@ export default function RoleDashboard({
                         title="Explore Events"
                         description="Find your next campus activity"
                         href="/explore-events"
-                        icon="⌕"
+                        icon="âŒ•"
                       />
                       <ActionCard
                         title="My Bookings"
                         description="View your registrations"
                         href="/my-bookings"
-                        icon="▣"
+                        icon="â–£"
                       />
                     </>
                   )}
@@ -589,13 +595,13 @@ export default function RoleDashboard({
                     href="/explore-events"
                     className="text-sm font-semibold text-[#7615ed] hover:underline"
                   >
-                    Explore Events →
+                    Explore Events â†’
                   </Link>
                 </div>
 
                 {visibleEvents.length === 0 ? (
                   <div className="px-6 py-12 text-center">
-                    <div className="text-3xl">▦</div>
+                    <div className="text-3xl">â–¦</div>
                     <h3 className="mt-3 font-semibold text-slate-800">
                       No events to display
                     </h3>
@@ -618,13 +624,13 @@ export default function RoleDashboard({
                           </h3>
                           <p className="mt-1 text-sm text-slate-500">
                             {event.date || "Date not set"}
-                            {event.time ? ` · ${event.time}` : ""}
-                            {event.location ? ` · ${event.location}` : ""}
+                            {event.time ? ` Â· ${event.time}` : ""}
+                            {event.location ? ` Â· ${event.location}` : ""}
                           </p>
                           <p className="mt-1 text-xs text-purple-200">
                             {event.category}
                             {role === "admin"
-                              ? ` · ${event.bookedCount}/${event.seats} booked`
+                              ? ` Â· ${event.bookedCount}/${event.seats} booked`
                               : ""}
                           </p>
                         </div>
@@ -654,7 +660,7 @@ export default function RoleDashboard({
                     href="/explore-events"
                     className="mt-5 inline-block rounded-xl bg-white px-5 py-3 text-sm font-bold text-violet-700"
                   >
-                    Explore Events →
+                    Explore Events â†’
                   </Link>
                 </section>
               )}
